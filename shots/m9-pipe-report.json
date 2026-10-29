@@ -1,0 +1,125 @@
+{
+  "shots": [
+    {
+      "processId": 7,
+      "softGL": true,
+      "flowLines": [
+        {
+          "tag": "HF",
+          "kids": 5
+        },
+        {
+          "tag": "organic",
+          "kids": 5
+        },
+        {
+          "tag": "product",
+          "kids": 5
+        },
+        {
+          "tag": "tail",
+          "kids": 5
+        }
+      ],
+      "silverMats": 0,
+      "neonShell": 0,
+      "exposure": 0.88,
+      "legendSample": [
+        "rgb(140, 193, 213)",
+        "rgb(200, 232, 108)",
+        "rgb(112, 207, 160)",
+        "rgb(177, 228, 87)"
+      ]
+    },
+    {
+      "processId": 8,
+      "softGL": true,
+      "flowLines": [
+        {
+          "tag": "H2",
+          "kids": 5
+        },
+        {
+          "tag": "N2",
+          "kids": 5
+        },
+        {
+          "tag": "substrate",
+          "kids": 5
+        },
+        {
+          "tag": "product",
+          "kids": 5
+        },
+        {
+          "tag": "recycle",
+          "kids": 5
+        }
+      ],
+      "silverMats": 0,
+      "neonShell": 0,
+      "exposure": 0.88,
+      "legendSample": [
+        "rgb(210, 162, 97)",
+        "rgb(244, 247, 251)",
+        "rgb(167, 156, 239)",
+        "rgb(47, 125, 240)"
+      ]
+    },
+    {
+      "processId": 9,
+      "softGL": true,
+      "flowLines": [
+        {
+          "tag": "coolant",
+          "kids": 5
+        },
+        {
+          "tag": "nitrite",
+          "kids": 5
+        },
+        {
+          "tag": "amine",
+          "kids": 5
+        },
+        {
+          "tag": "acid",
+          "kids": 5
+        }
+      ],
+      "silverMats": 0,
+      "neonShell": 0,
+      "exposure": 0.88,
+      "legendSample": [
+        "rgb(193, 145, 93)",
+        "rgb(152, 200, 163)",
+        "rgb(223, 206, 137)",
+        "rgb(255, 107, 74)",
+        "rgb(110, 200, 255)"
+      ]
+    }
+  ],
+  "errs": [],
+  "soft": {
+    "softGL": true,
+    "graded": true,
+    "exposure": 0.88,
+    "envIntensity": 2.25,
+    "bloom": {
+      "s": 0.4425,
+      "on": true
+    },
+    "bokehEnabled": false,
+    "muls": {
+      "exposureMul": 0.88,
+      "envIntensityMul": 0.9,
+      "bloomMul": 0.75
+    },
+    "before": {
+      "exposure": 1,
+      "envIntensity": 2.5,
+      "bloomStrength": 0.59,
+      "bloomEnabled": true
+    }
+  }
+}

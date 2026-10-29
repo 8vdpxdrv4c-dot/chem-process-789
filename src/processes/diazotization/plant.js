@@ -67,18 +67,28 @@ export function buildDiazotizationPlant(THREE, scene, opts = {}) {
   );
   insul.rotation.z = Math.PI / 2;
   insul.position.set(4, 7.2, -8);
+  // Silver pipe core + thin coolant ID rings (定稿：管体银灰，色只在环)
   const core = new THREE.Mesh(
     new THREE.CylinderGeometry(0.28, 0.28, 4.2, 10),
     new THREE.MeshStandardMaterial({
-      color: COLORS.coolant, metalness: 0.6, roughness: 0.36, envMapIntensity: 1.05,
-      emissive: COLORS.coolant, emissiveIntensity: 0.04,
+      color: 0xc0c8d0, metalness: 0.88, roughness: 0.34, envMapIntensity: 1.15,
+      emissive: 0x000000, emissiveIntensity: 0,
     }),
   );
   core.rotation.z = Math.PI / 2;
   core.position.copy(insul.position);
+  const coolRingMat = new THREE.MeshStandardMaterial({
+    color: COLORS.coolant, metalness: 0.5, roughness: 0.38, envMapIntensity: 1.0,
+    emissive: 0x000000, emissiveIntensity: 0,
+  });
+  const coolRingL = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.4, 12), coolRingMat);
+  coolRingL.rotation.z = Math.PI / 2;
+  coolRingL.position.set(insul.position.x - 1.2, insul.position.y, insul.position.z);
+  const coolRingR = coolRingL.clone();
+  coolRingR.position.set(insul.position.x + 1.2, insul.position.y, insul.position.z);
   const d09Group = new THREE.Group();
   d09Group.name = 'D09';
-  d09Group.add(D09, insul, core);
+  d09Group.add(D09, insul, core, coolRingL, coolRingR);
   d09Group.userData = { id: 'D09', pickable: true, kind: 'pipeInsulation' };
   D09.userData = d09Group.userData;
 

@@ -11,7 +11,7 @@
   "legend": [
     {
       "label": "硝基苯",
-      "color": "#e8a54b"
+      "color": "#d2a261"
     },
     {
       "label": "H₂",
@@ -19,7 +19,7 @@
     },
     {
       "label": "苯胺",
-      "color": "#9b8cff"
+      "color": "#a79cef"
     },
     {
       "label": "N₂ 置换",

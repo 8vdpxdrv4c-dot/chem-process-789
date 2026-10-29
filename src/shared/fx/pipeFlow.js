@@ -1,19 +1,26 @@
 /**
- * SoftGL-safe pipe flow — adapted from three-js demos/effects/pipe-flow.js
- * Inner TubeGeometry ShaderMaterial (scrolling FBM) + bead Points along curve.
- * Teaching 示意: tint by process fluid colors (HF / H2 / N2 / coolant …).
+ * SoftGL-safe pipe flow — silver metal shell + thin ID rings + beads.
+ * Teaching 示意: fluid hue on bands & beads only (not full-tube neon paint).
+ * Per 化学课件老师定稿 · M9 pipe-color realism.
  */
 import * as THREE from 'three';
 
-const FlowShader = {
+const SILVER = 0xc0c8d0;
+
+/**
+ * Silver shell with mild scrolling flow cue (tint ≤ ~22% fluid color).
+ * Near-zero emissive — kill neon full-tube paint.
+ */
+const ShellFlowShader = {
   uniforms: {
     uTime: { value: 0 },
     uSpeed: { value: 1.2 },
     uColor: { value: new THREE.Color(0x2a9fff) },
-    uEmissive: { value: new THREE.Color(0x0a3060) },
+    uEmissive: { value: new THREE.Color(0x000000) },
     uOpacity: { value: 1.0 },
-    uEnergy: { value: 0.35 },
+    uEnergy: { value: 0.08 },
     uValve: { value: 1.0 },
+    uSilver: { value: new THREE.Color(SILVER) },
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
@@ -35,6 +42,7 @@ const FlowShader = {
     uniform float uOpacity;
     uniform float uEnergy;
     uniform float uValve;
+    uniform vec3 uSilver;
     varying vec2 vUv;
     varying vec3 vNormal;
     varying vec3 vView;
@@ -60,24 +68,22 @@ const FlowShader = {
 
     void main() {
       float spd = uSpeed * max(0.04, uValve);
-      vec2 uv = vUv * vec2(6.0, 1.6);
-      uv.x -= uTime * spd * 1.35;
+      vec2 uv = vUv * vec2(5.0, 1.3);
+      uv.x -= uTime * spd * 1.05;
       float n = fbm(uv);
-      float bands = smoothstep(0.32, 0.72, n);
-      float n2 = fbm(uv * 1.6 + vec2(uTime * spd * 0.45, 0.0));
-      bands = mix(bands, n2, 0.3);
+      float bands = smoothstep(0.42, 0.82, n);
 
       vec3 N = normalize(vNormal);
       vec3 V = normalize(vView);
-      float fres = pow(1.0 - max(dot(N, V), 0.0), 2.6);
+      float fres = pow(1.0 - max(dot(N, V), 0.0), 2.4);
 
-      vec3 col = uColor * (0.32 + bands * 0.95);
-      col += uEmissive * uEnergy * (0.35 + bands * 1.1);
-      col += vec3(0.55, 0.8, 1.0) * fres * (0.28 + uEnergy * 0.4);
+      // Body stays silver; flow cue = faint fluid tint on scrolling bands only
+      float tintAmt = (0.06 + bands * 0.16) * mix(0.55, 1.0, uValve);
+      vec3 col = mix(uSilver, uColor, tintAmt);
+      // metal-ish shading without neon emissive
+      col *= 0.78 + fres * 0.28;
+      col += uEmissive * uEnergy * bands * 0.15;
 
-      // Opaque flow tubes (no glass/transmission) — bands modulate albedo only
-      float flowVis = mix(0.55, 1.0, uValve);
-      col *= flowVis;
       gl_FragColor = vec4(col, 1.0);
     }
   `,
@@ -85,15 +91,52 @@ const FlowShader = {
 
 function mediumLook(colorHex, medium = 'liquid') {
   const color = new THREE.Color(colorHex);
-  const emissive = color.clone().multiplyScalar(0.35);
-  // Tubes stay fully opaque; medium only tunes albedo energy / bead cue
+  // Near-zero emissive — kill neon pipe glow (定稿)
+  const emissive = new THREE.Color(0x000000);
   if (medium === 'gas') {
-    return { color, emissive, opacity: 1, energy: 0.7 };
+    return { color, emissive, opacity: 1, energy: 0.1 };
   }
   if (medium === 'steam') {
-    return { color, emissive, opacity: 1, energy: 0.5 };
+    return { color, emissive, opacity: 1, energy: 0.08 };
   }
-  return { color, emissive, opacity: 1, energy: 0.45 };
+  return { color, emissive, opacity: 1, energy: 0.08 };
+}
+
+function fluidBandMat(THREE, colorHex) {
+  return new THREE.MeshStandardMaterial({
+    color: colorHex,
+    metalness: 0.48,
+    roughness: 0.4,
+    envMapIntensity: 0.95,
+    emissive: 0x000000,
+    emissiveIntensity: 0,
+  });
+}
+
+/**
+ * Short ID rings along curve (GB-style colour bands on silver pipe).
+ */
+function addIdBands(THREE, root, curve, radius, colorHex, softGL) {
+  const mat = fluidBandMat(THREE, colorHex);
+  const bandH = softGL ? 0.62 : 0.48;
+  const bandR = radius * 1.14;
+  const ts = [0.18, 0.5, 0.82];
+  const _p = new THREE.Vector3();
+  const _t = new THREE.Vector3();
+  const _q = new THREE.Quaternion();
+  const _up = new THREE.Vector3(0, 1, 0);
+  for (const t of ts) {
+    curve.getPointAt(t, _p);
+    curve.getTangentAt(t, _t).normalize();
+    const geo = new THREE.CylinderGeometry(bandR, bandR, bandH, softGL ? 10 : 14);
+    const mesh = new THREE.Mesh(geo, mat);
+    _q.setFromUnitVectors(_up, _t);
+    mesh.quaternion.copy(_q);
+    mesh.position.copy(_p);
+    mesh.castShadow = true;
+    mesh.frustumCulled = false;
+    root.add(mesh);
+  }
 }
 
 /**
@@ -132,32 +175,39 @@ export function createFlowLine(THREE, opts) {
   );
   const tubular = softGL ? 36 : 72;
   const radial = softGL ? 8 : 12;
-  // SoftGL overview: slightly fatter tubes so scrolling flow reads at plant scale
+  // SoftGL overview: slightly fatter tubes so silver + bands read at plant scale
   const rEff = softGL ? radius * 1.55 : radius;
   const look = mediumLook(color, medium);
 
-  const geo = new THREE.TubeGeometry(curve, tubular, rEff, radial, false);
-  const uniforms = THREE.UniformsUtils.clone(FlowShader.uniforms);
+  // Outer / main tube = silver metal (shader keeps body silver, faint flow cue)
+  const shellGeo = new THREE.TubeGeometry(curve, tubular, rEff, radial, false);
+  const uniforms = THREE.UniformsUtils.clone(ShellFlowShader.uniforms);
   uniforms.uColor.value = look.color.clone();
   uniforms.uEmissive.value = look.emissive.clone();
   uniforms.uOpacity.value = look.opacity;
   uniforms.uEnergy.value = look.energy;
   uniforms.uSpeed.value = speed;
   uniforms.uValve.value = 1;
+  uniforms.uSilver.value = new THREE.Color(SILVER);
 
-  const mat = new THREE.ShaderMaterial({
+  const shellMat = new THREE.ShaderMaterial({
     uniforms,
-    vertexShader: FlowShader.vertexShader,
-    fragmentShader: FlowShader.fragmentShader,
+    vertexShader: ShellFlowShader.vertexShader,
+    fragmentShader: ShellFlowShader.fragmentShader,
     transparent: false,
     depthWrite: true,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,
     blending: THREE.NormalBlending,
   });
-  const tube = new THREE.Mesh(geo, mat);
-  tube.frustumCulled = false;
-  root.add(tube);
+  const shell = new THREE.Mesh(shellGeo, shellMat);
+  shell.frustumCulled = false;
+  shell.castShadow = true;
+  root.add(shell);
 
+  // Thin ID rings on the silver shell (primary fluid identity)
+  addIdBands(THREE, root, curve, rEff, color, softGL);
+
+  // Beads along curve (motion cue, fluid colour)
   const n = Math.max(12, softGL ? Math.min(28, particleCount) : particleCount);
   const pos = new Float32Array(n * 3);
   const progresses = new Float32Array(n);
@@ -171,7 +221,7 @@ export function createFlowLine(THREE, opts) {
     pgeo,
     new THREE.PointsMaterial({
       color: look.color,
-      size: softGL ? 1.15 : 0.5,
+      size: softGL ? 0.95 : 0.42,
       transparent: false,
       opacity: 1,
       depthWrite: true,
@@ -184,7 +234,7 @@ export function createFlowLine(THREE, opts) {
 
   let baseSpeed = speed;
   let boost = 1;
-  let valve = 0.7; // idle mild life (readable in SoftGL overview)
+  let valve = 0.7;
   const _p = new THREE.Vector3();
 
   function setBoost(mul) {
@@ -208,7 +258,6 @@ export function createFlowLine(THREE, opts) {
     const arr = beads.geometry.attributes.position.array;
     for (let i = 0; i < n; i++) {
       progresses[i] += dt * effective * 0.08;
-      // Keep strictly in [0,1) — CatmullRomCurve3.getPointAt(1+) reads past last control point
       progresses[i] -= Math.floor(progresses[i]);
       if (progresses[i] < 0) progresses[i] += 1;
       const u = Math.min(0.999999, Math.max(0, progresses[i]));
@@ -253,7 +302,6 @@ export function createFlowNetwork(THREE, specs, softGL = false) {
     for (const l of lines) l.update(dt, elapsed);
   }
 
-  /** Mild idle; boost tags matching / relevant to step. */
   function applyStepBoost(activeTags = [], { idle = 0.7, active = 1.0, playing = false } = {}) {
     const set = new Set(activeTags);
     const idleV = playing ? Math.max(idle, 0.7) : idle;

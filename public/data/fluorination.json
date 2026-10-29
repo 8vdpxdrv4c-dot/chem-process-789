@@ -11,7 +11,7 @@
   "legend": [
     {
       "label": "有机物",
-      "color": "#7ec8e3"
+      "color": "#8cc1d5"
     },
     {
       "label": "HF",
@@ -19,11 +19,11 @@
     },
     {
       "label": "产物 R–F",
-      "color": "#5ee1a0"
+      "color": "#70cfa0"
     },
     {
       "label": "F₂对比",
-      "color": "#b8ff3c"
+      "color": "#b1e457"
     }
   ],
   "flowNodes": [

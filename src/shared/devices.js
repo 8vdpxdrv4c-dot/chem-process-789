@@ -48,16 +48,16 @@ export function makeMaterials(THREE) {
     envMapIntensity: 1.0,
     emissive: COLORS.warn_orange, emissiveIntensity: 0.035,
   });
-  // H₂ 近白珐琅管色 — 仍靠 IBL，勿自发光冲掉环境反射
+  // H₂ / N₂ 识别色环 — 锁色相；近零自发光（管体银灰，色只在环上）
   const h2Band = new THREE.MeshStandardMaterial({
     color: COLORS.H2, metalness: 0.42, roughness: 0.36,
     envMapIntensity: 1.05,
-    emissive: 0xf4f7fb, emissiveIntensity: 0.04,
+    emissive: 0x000000, emissiveIntensity: 0,
   });
   const n2Band = new THREE.MeshStandardMaterial({
     color: COLORS.N2, metalness: 0.5, roughness: 0.38,
     envMapIntensity: 1.0,
-    emissive: COLORS.N2, emissiveIntensity: 0.05,
+    emissive: 0x000000, emissiveIntensity: 0,
   });
   return { metal, metalDark, metalLite, painted, insulation, concrete, warn, h2Band, n2Band };
 }
@@ -111,12 +111,12 @@ function colorBand(THREE, radius, y, colorHex, { h2 = false } = {}) {
     : mats.painted.clone();
   if (h2) {
     mat.color.set(COLORS.H2);
-    mat.emissive.set(COLORS.H2);
-    mat.emissiveIntensity = 0.04;
+    mat.emissive.setHex(0x000000);
+    mat.emissiveIntensity = 0;
   } else {
     mat.color.set(colorHex);
-    mat.emissive.set(colorHex);
-    mat.emissiveIntensity = 0.03;
+    mat.emissive.setHex(0x000000);
+    mat.emissiveIntensity = 0;
     mat.metalness = 0.52;
     mat.roughness = 0.38;
     mat.envMapIntensity = 1.0;
@@ -415,8 +415,8 @@ export function makeFlare(THREE, { id = 'flare' } = {}) {
 }
 
 /**
- * F · 管廊桁架 + 平行管线色带 + 法兰/阀门暗示
- * H₂ 管保持白 #f4f7fb；N₂ 用蓝 #2f7df0
+ * F · 管廊桁架 + 银灰平行管 + 薄识别色环 + 法兰/阀门暗示
+ * 管体 ALWAYS 银灰金属；色只在薄环。H₂ #f4f7fb / N₂ #2f7df0 锁色相。
  */
 export function makePipeRack(THREE, {
   length = 40,
@@ -439,26 +439,37 @@ export function makePipeRack(THREE, {
     g.add(leg, beam, cross);
   }
   bandColors.forEach((c, i) => {
-    const isH2 = h2Indices.includes(i) || c.toLowerCase() === COLORS.H2.toLowerCase();
-    const mat = isH2
-      ? mats.h2Band.clone()
-      : new THREE.MeshStandardMaterial({
-          color: c, metalness: 0.55, roughness: 0.36,
-          envMapIntensity: 1.0, emissive: c, emissiveIntensity: 0.025,
-        });
-    if (isH2) {
-      mat.color.set(COLORS.H2);
-      mat.emissive.set(COLORS.H2);
-      mat.emissiveIntensity = 0.04;
-      mat.metalness = 0.42;
-      mat.roughness = 0.36;
-      mat.envMapIntensity = 1.05;
-    }
-    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, length, 12), mat);
+    const isH2 = h2Indices.includes(i) || String(c).toLowerCase() === COLORS.H2.toLowerCase();
+    const isN2 = String(c).toLowerCase() === COLORS.N2.toLowerCase();
+    // Pipe body = silver metal ALWAYS (定稿)
+    const pipeMat = mats.metal.clone();
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, length, 12), pipeMat);
     pipe.rotation.z = Math.PI / 2;
     pipe.position.set(0, 6.85 + i * 0.75, (i - (bandColors.length - 1) / 2) * 1.0);
     pipe.castShadow = true;
     g.add(pipe);
+
+    // Thin ID colour rings (1–2 places) — locked hues stay; secondaries already desat in COLORS
+    let bandMat;
+    if (isH2) {
+      bandMat = mats.h2Band.clone();
+      bandMat.color.set(COLORS.H2);
+    } else if (isN2) {
+      bandMat = mats.n2Band.clone();
+      bandMat.color.set(COLORS.N2);
+    } else {
+      bandMat = new THREE.MeshStandardMaterial({
+        color: c, metalness: 0.5, roughness: 0.38,
+        envMapIntensity: 1.0, emissive: 0x000000, emissiveIntensity: 0,
+      });
+    }
+    for (const fx of [-length * 0.28, length * 0.28]) {
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.48, 14), bandMat);
+      ring.rotation.z = Math.PI / 2;
+      ring.position.set(fx, pipe.position.y, pipe.position.z);
+      ring.castShadow = true;
+      g.add(ring);
+    }
     // 法兰盘
     for (const fx of [-length * 0.25, length * 0.25]) {
       const fl = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.18, 14), mats.metalLite);
