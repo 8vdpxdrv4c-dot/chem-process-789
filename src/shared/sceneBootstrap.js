@@ -30,17 +30,17 @@ export function createScene(canvas, { Q = 'high' } = {}) {
   renderer.setSize(innerWidth, innerHeight, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  // Look-dev bake: ACESFilmic + exposure 0.47 (envTweak CODE_DEFAULTS)
-  renderer.toneMappingExposure = preset.exposure ?? 0.47;
+  // Look-dev bake: ACESFilmic + exposure 1 (envTweak CODE_DEFAULTS)
+  renderer.toneMappingExposure = preset.exposure ?? 1;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
   // PMREM IBL + FogExp2; solid look-dev bg (mountains kept)
   const envMaps = applySkyAndFog(scene, renderer, {
-    fogDensity: preset.fog ?? 0.002,
-    fogColor: preset.fogColor ?? 0x20245b,
-    background: preset.background ?? 0x6a8dd2,
+    fogDensity: preset.fog ?? 0.0002,
+    fogColor: preset.fogColor ?? 0x0029cc,
+    background: preset.background ?? 0x3254a4,
     envIntensity: preset.envIntensity ?? 2.5,
   });
   addMountains(scene, { count: 36, rMin: 350, rMax: 700 });
@@ -67,11 +67,11 @@ export function createScene(canvas, { Q = 'high' } = {}) {
   const fillMul = preset.fillMul ?? 1;
   const rimMul = preset.rimMul ?? 1;
 
-  const hemi = new THREE.HemisphereLight(0xfea62a, 0x0060fa, 3 * fillMul);
+  const hemi = new THREE.HemisphereLight(0xfea62a, 0x0060fa, 4.34 * fillMul);
   scene.add(hemi);
 
-  const key = new THREE.DirectionalLight(0xfece67, 3.16 * sunMul);
-  key.position.set(-7.3, 32.1, -6.4);
+  const key = new THREE.DirectionalLight(0x896b2a, 0.86 * sunMul);
+  key.position.set(0.5, 16.2, -7.5);
   key.target.position.set(0, 2, 0);
   key.castShadow = true;
   key.shadow.mapSize.set(preset.shadow, preset.shadow);
@@ -87,21 +87,21 @@ export function createScene(canvas, { Q = 'high' } = {}) {
   scene.add(key);
   scene.add(key.target);
 
-  // Cool fill
-  const fill = new THREE.DirectionalLight(0x8fc0ff, 3.08 * fillMul);
+  // Fill
+  const fill = new THREE.DirectionalLight(0x9b9469, 0.75 * fillMul);
   fill.position.set(6.8, 10, 12.9);
   scene.add(fill);
 
   // Rim
-  const rim = new THREE.DirectionalLight(0xfef6f6, 0.55 * rimMul);
-  rim.position.set(0, 23.7, 10);
+  const rim = new THREE.DirectionalLight(0xfef6f6, 0.91 * rimMul);
+  rim.position.set(-10.6, 23.7, 10);
   scene.add(rim);
 
-  // Plant area lights (warm amber look-dev)
-  const plantA = new THREE.PointLight(0xfe7606, 4, 110, 2);
+  // Plant area lights (cyan look-dev)
+  const plantA = new THREE.PointLight(0x00fbff, 1.44, 110, 2);
   plantA.position.set(8, 18, 6);
   scene.add(plantA);
-  const plantB = new THREE.PointLight(0xfe7606, 1.87, 100, 2);
+  const plantB = new THREE.PointLight(0x00fbff, 0.61, 100, 2);
   plantB.position.set(-18, 14, -10);
   scene.add(plantB);
 
@@ -129,7 +129,7 @@ export function createScene(canvas, { Q = 'high' } = {}) {
   let bokeh = null;
   if (preset.dof) {
     bokeh = new BokehPass(scene, camera, {
-      focus: preset.focus ?? 233,
+      focus: preset.focus ?? 37,
       aperture: preset.aperture,
       maxblur: preset.maxblur,
     });

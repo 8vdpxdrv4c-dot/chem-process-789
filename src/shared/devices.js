@@ -1065,7 +1065,7 @@ export function makeStreetLights(THREE, size = 220) {
   });
   const headMat = new THREE.MeshStandardMaterial({
     color: 0x2a2e34, metalness: 0.65, roughness: 0.35, envMapIntensity: 0.9,
-    emissive: 0xffd2a0, emissiveIntensity: 5, // CODE_DEFAULTS streetHeadEmissiveIntensity
+    emissive: 0xffd2a0, emissiveIntensity: 4.62, // CODE_DEFAULTS streetHeadEmissiveIntensity
   });
   const armMat = poleMat;
 
@@ -1084,7 +1084,7 @@ export function makeStreetLights(THREE, size = 220) {
   const poolMat = new THREE.MeshBasicMaterial({
     map: poolTex,
     transparent: true,
-    opacity: 1,
+    opacity: 0.51, // CODE_DEFAULTS streetPoolOpacity
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     fog: false,
@@ -1172,7 +1172,7 @@ export function makeStreetLights(THREE, size = 220) {
 
     // Point lights on every other pole to keep SoftGL budget sane
     if (lightBudget < maxPointLights && li % 2 === 0) {
-      const pl = new THREE.PointLight(0xffd8b0, 6, 22, 2);
+      const pl = new THREE.PointLight(0xffd8b0, 0.97, 22, 2); // CODE_DEFAULTS streetLampIntensity
       pl.position.set(ax, h - 0.3, az);
       g.add(pl);
       lights.push(pl);
@@ -1317,7 +1317,7 @@ export function makeGround(THREE, size = 220) {
   // 1) Outer dark field (fog apron) — look-dev bake
   const outer = new THREE.Mesh(
     new THREE.PlaneGeometry(size * 4.5, size * 4.5),
-    new THREE.MeshStandardMaterial({ color: 0x342704, roughness: 1, metalness: 0 }),
+    new THREE.MeshStandardMaterial({ color: 0x342704, roughness: 0.47, metalness: 0 }),
   );
   outer.rotation.x = -Math.PI / 2;
   outer.position.y = -0.05;
@@ -1329,12 +1329,12 @@ export function makeGround(THREE, size = 220) {
   tCon.repeat.set(Math.max(10, size / 16), Math.max(8, size / 20));
   tCon.needsUpdate = true;
   const padMat = new THREE.MeshStandardMaterial({
-    color: 0x8f8f8f,
+    color: 0x3f3a36,
     map: tCon,
-    roughness: 1,
+    roughness: 0.81,
     metalness: 0.04,
     emissive: 0x1a1e24,
-    emissiveIntensity: 0.43,
+    emissiveIntensity: 0.04,
   });
   const pad = new THREE.Mesh(new THREE.PlaneGeometry(size * 0.95, size * 0.78), padMat);
   pad.rotation.x = -Math.PI / 2;
@@ -1350,15 +1350,15 @@ export function makeGround(THREE, size = 220) {
   tAsphZ.repeat.set(2, Math.max(16, size / 8));
   tAsphZ.needsUpdate = true;
   const rdX = new THREE.MeshStandardMaterial({
-    color: 0x3a3e45, map: tAsphX, roughness: 0.36, metalness: 0.1,
+    color: 0x3a3e45, map: tAsphX, roughness: 0.56, metalness: 0.1,
   });
   const rdZ = new THREE.MeshStandardMaterial({
-    color: 0x3a3e45, map: tAsphZ, roughness: 0.36, metalness: 0.1,
+    color: 0x3a3e45, map: tAsphZ, roughness: 0.56, metalness: 0.1,
   });
   const paint = new THREE.MeshBasicMaterial({ color: 0xe8e8e0 });
   const curbMat = new THREE.MeshStandardMaterial({
     color: 0x9aa0a8, roughness: 1, metalness: 0.04,
-    emissive: 0x1c2026, emissiveIntensity: 0.88,
+    emissive: 0x1c2026, emissiveIntensity: 0.95,
   });
   const dashGX = new THREE.PlaneGeometry(3, 0.15);
   dashGX.rotateX(-Math.PI / 2);
@@ -1420,7 +1420,7 @@ export function makeGround(THREE, size = 220) {
   tUnit.repeat.set(6, 6);
   tUnit.needsUpdate = true;
   const unitMat = new THREE.MeshStandardMaterial({
-    color: 0x9aa2aa, map: tUnit, roughness: 0.8, metalness: 0.03,
+    color: 0x9aa2aa, map: tUnit, roughness: 0.59, metalness: 0.03,
     emissive: 0x22262c, emissiveIntensity: 1.4,
   });
   // Relative pads cover feed / reactor / sep-comp / product (scale with size)

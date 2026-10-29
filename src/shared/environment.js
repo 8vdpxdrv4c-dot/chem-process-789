@@ -249,9 +249,9 @@ export function applySkyAndFog(
   scene,
   renderer,
   {
-    fogDensity = 0.002,
-    fogColor = 0x20245b,
-    background = 0x6a8dd2,
+    fogDensity = 0.0002,
+    fogColor = 0x0029cc,
+    background = 0x3254a4,
     envIntensity = 2.5,
     useDuskBackground = false,
   } = {},

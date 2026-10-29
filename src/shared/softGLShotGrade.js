@@ -12,7 +12,7 @@
  */
 import { refreshDeviceEnvMaps } from './devices.js';
 
-/** SoftGL vs real-GPU: milder muls for ACESFilmic + exposure 0.47 bake. */
+/** SoftGL vs real-GPU: milder muls for ACESFilmic + exposure 1 bake. */
 export const SOFTGL_SHOT_GRADE = Object.freeze({
   exposureMul: 0.88,
   envIntensityMul: 0.9,
