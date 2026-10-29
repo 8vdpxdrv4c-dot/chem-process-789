@@ -1,0 +1,21 @@
+{
+  "name": "chem-process-789",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "重点监管危险化工工艺 7/8/9 · 氟化 / 加氢 / 重氮化 · 3D 大屏课件脚手架（教学示意）",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5178",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4178"
+  },
+  "dependencies": {
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true
+  }
+}
