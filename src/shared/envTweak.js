@@ -4,6 +4,7 @@
  * Persist: localStorage `chem789-env-tweak`
  */
 import * as THREE from 'three';
+import { refreshDeviceEnvMaps } from './devices.js';
 
 export const LS_KEY = 'chem789-env-tweak';
 
@@ -32,12 +33,12 @@ function setColor(obj, hex) {
 
 /** Absolute boot defaults (fresh load + Reset). SoftGL still forces bokeh off at panel boot. */
 export const CODE_DEFAULTS = Object.freeze({
-  exposure: 2.2,
-  toneMapping: 'AgX',
+  exposure: 0.47,
+  toneMapping: 'ACESFilmic',
   background: '#6a8dd2',
-  fogColor: '#0029cc',
-  fogDensity: 0.0011,
-  envIntensity: 1.36,
+  fogColor: '#20245b',
+  fogDensity: 0.002,
+  envIntensity: 2.5,
   envMapEnabled: true,
 
   hemiSky: '#fea62a',
@@ -45,60 +46,60 @@ export const CODE_DEFAULTS = Object.freeze({
   hemiIntensity: 3,
 
   keyColor: '#fece67',
-  keyIntensity: 3.28,
-  keyPosX: 0.5,
-  keyPosY: 16.2,
-  keyPosZ: -7.5,
+  keyIntensity: 3.16,
+  keyPosX: -7.3,
+  keyPosY: 32.1,
+  keyPosZ: -6.4,
 
   fillColor: '#8fc0ff',
-  fillIntensity: 4,
+  fillIntensity: 3.08,
   fillPosX: 6.8,
   fillPosY: 10,
   fillPosZ: 12.9,
 
   rimColor: '#fef6f6',
-  rimIntensity: 0.91,
-  rimPosX: -10.6,
+  rimIntensity: 0.55,
+  rimPosX: 0,
   rimPosY: 23.7,
   rimPosZ: 10,
 
-  plantColor: '#00fbff',
-  plantAIntensity: 1.88,
+  plantColor: '#fe7606',
+  plantAIntensity: 4,
   plantBIntensity: 1.87,
 
   bloomEnabled: true,
-  bloomStrength: 0.59,
+  bloomStrength: 0.36,
   bloomRadius: 1.5,
   bloomThreshold: 1.58,
 
   dofEnabled: true,
-  dofApertureOverview: 0.000175,
-  dofMaxblurOverview: 0.0104,
-  dofApertureClose: 0.000112,
-  dofMaxblurClose: 0.0127,
-  dofFocus: 156,
+  dofApertureOverview: 0,
+  dofMaxblurOverview: 0,
+  dofApertureClose: 0,
+  dofMaxblurClose: 0,
+  dofFocus: 233,
 
   groundOuter: '#342704',
-  groundOuterRough: 0.5,
+  groundOuterRough: 1,
   groundPad: '#8f8f8f',
   groundPadRough: 1,
   groundPadEmissive: '#1a1e24',
-  groundPadEmissiveIntensity: 0.04,
+  groundPadEmissiveIntensity: 0.43,
   groundAsphalt: '#3a3e45',
-  groundAsphaltRough: 0.32,
+  groundAsphaltRough: 0.36,
   groundUnit: '#9aa2aa',
-  groundUnitRough: 0.59,
+  groundUnitRough: 0.8,
   groundUnitEmissive: '#22262c',
   groundUnitEmissiveIntensity: 1.4,
   curbColor: '#9aa0a8',
   curbRough: 1,
   curbEmissive: '#1c2026',
-  curbEmissiveIntensity: 0.95,
+  curbEmissiveIntensity: 0.88,
 
-  streetLampIntensity: 2.46,
+  streetLampIntensity: 6,
   streetLampColor: '#ffd8b0',
   streetHeadEmissive: '#ffd2a0',
-  streetHeadEmissiveIntensity: 3.06,
+  streetHeadEmissiveIntensity: 5,
   streetPoolOpacity: 1,
 });
 
@@ -133,7 +134,7 @@ export function snapshotParams(H) {
   const sc = H.scene;
   if (r) {
     p.exposure = r.toneMappingExposure;
-    p.toneMapping = TONE_MAP_INV.get(r.toneMapping) || 'AgX';
+    p.toneMapping = TONE_MAP_INV.get(r.toneMapping) || 'ACESFilmic';
   }
   if (sc?.background?.isColor) p.background = hexFromColor(sc.background);
   if (sc?.fog) {
@@ -254,10 +255,19 @@ export function applyEnvParams(H, params, { skipPersist } = {}) {
     }
     if ('environmentIntensity' in sc) sc.environmentIntensity = +p.envIntensity;
     if (p.envMapEnabled) {
-      if (!sc.environment && H.envMaps?.show) sc.environment = H.envMaps.show;
+      if (H.envMaps?.show) sc.environment = H.envMaps.show;
+      else if (!sc.environment && H.envMaps?.studio) sc.environment = H.envMaps.studio;
     } else {
       sc.environment = null;
     }
+    // Explicit material.envMap bypasses scene.environmentIntensity — bake intensity
+    // into envMapIntensity so IBL still reads at envIntensity (stainless reflections).
+    try {
+      refreshDeviceEnvMaps(sc, sc, {
+        intensityScale: p.envMapEnabled ? +p.envIntensity : 0,
+        enabled: !!p.envMapEnabled,
+      });
+    } catch (_) { /* materials may not be ready */ }
   }
 
   if (H.hemi) {
@@ -302,8 +312,9 @@ export function applyEnvParams(H, params, { skipPersist } = {}) {
     H.DOF_MODES.close.maxblur = +p.dofMaxblurClose;
   }
   if (H.bokeh) {
-    // SoftGL darkens with bokeh compositing — still allow teaching override
-    H.bokeh.enabled = !!p.dofEnabled;
+    // SoftGL: BokehPass darkens the whole frame even at aperture/maxblur 0 —
+    // keep pass for API/setFocus, but never enable compositing under SoftGL.
+    H.bokeh.enabled = !!p.dofEnabled && !H.softGL;
     const mode = H.getDofMode?.() || 'overview';
     const m = H.DOF_MODES?.[mode];
     if (m) {

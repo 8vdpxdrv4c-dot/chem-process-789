@@ -243,16 +243,16 @@ export function buildZipperEnvMap(renderer) {
 
 /**
  * Cinematic look: solid bg + FogExp2 + PMREM IBL on metals.
- * Defaults match envTweak CODE_DEFAULTS (AgX look-dev bake).
+ * Defaults match envTweak CODE_DEFAULTS (ACESFilmic look-dev bake).
  */
 export function applySkyAndFog(
   scene,
   renderer,
   {
-    fogDensity = 0.0011,
-    fogColor = 0x0029cc,
+    fogDensity = 0.002,
+    fogColor = 0x20245b,
     background = 0x6a8dd2,
-    envIntensity = 1.36,
+    envIntensity = 2.5,
     useDuskBackground = false,
   } = {},
 ) {

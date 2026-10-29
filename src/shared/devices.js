@@ -62,24 +62,33 @@ export function makeMaterials(THREE) {
   return { metal, metalDark, metalLite, painted, insulation, concrete, warn, h2Band, n2Band };
 }
 
-/** After PMREM is on scene.environment, nudge Standard/Physical mats to take IBL. */
-export function refreshDeviceEnvMaps(root, scene, { intensityScale = 1 } = {}) {
+/**
+ * After PMREM is on scene.environment, nudge Standard/Physical mats to take IBL.
+ * SoftGL / some post paths need an explicit material.envMap. That bypasses
+ * scene.environmentIntensity, so bake intensityScale (usually CODE_DEFAULTS.envIntensity)
+ * into material.envMapIntensity = base * intensityScale.
+ */
+export function refreshDeviceEnvMaps(root, scene, { intensityScale = 1, enabled = true } = {}) {
   if (!root || !scene) return 0;
-  const env = scene.environment || null;
+  const on = enabled !== false && intensityScale > 0;
+  const env = on ? (scene.environment || null) : null;
   let n = 0;
   root.traverse((o) => {
     if (!o.isMesh || !o.material) return;
     const list = Array.isArray(o.material) ? o.material : [o.material];
     for (const m of list) {
       if (!m || !(m.isMeshStandardMaterial || m.isMeshPhysicalMaterial)) continue;
-      if (env && m.envMap !== env && m.userData?.lockEnvMap !== true) {
-        // scene.environment already feeds Standard; explicit envMap helps SoftGL clones
-        m.envMap = env;
-      }
+      if (m.userData?.lockEnvMap === true) continue;
       if (m.userData?.baseEnvMapIntensity == null) {
         m.userData.baseEnvMapIntensity = m.envMapIntensity ?? 1;
       }
-      m.envMapIntensity = m.userData.baseEnvMapIntensity * intensityScale;
+      if (on && env) {
+        m.envMap = env;
+        m.envMapIntensity = m.userData.baseEnvMapIntensity * intensityScale;
+      } else if (!on) {
+        m.envMap = null;
+        m.envMapIntensity = m.userData.baseEnvMapIntensity;
+      }
       m.needsUpdate = true;
       n += 1;
     }
@@ -1044,7 +1053,7 @@ export function makeReliefVent(THREE, { id = 'D07' } = {}) {
 }
 
 
-/** M8 · 厂区路灯点缀 — 稀疏散布暖白灯 + 地面光池（三工艺共用） */
+/** M8 · 厂区路灯 — 沿沥青路两侧加密暖白灯 + 地面光池（三工艺共用） */
 export function makeStreetLights(THREE, size = 220) {
   const g = new THREE.Group();
   g.name = 'streetLights';
@@ -1054,17 +1063,17 @@ export function makeStreetLights(THREE, size = 220) {
   });
   const headMat = new THREE.MeshStandardMaterial({
     color: 0x2a2e34, metalness: 0.65, roughness: 0.35, envMapIntensity: 0.9,
-    emissive: 0xffd2a0, emissiveIntensity: 3.06, // intentional lamp
+    emissive: 0xffd2a0, emissiveIntensity: 5, // CODE_DEFAULTS streetHeadEmissiveIntensity
   });
   const armMat = poleMat;
 
-  // Soft warm radial pool (Haber-style additive)
+  // Soft warm radial pool (Haber-style additive) — stronger for night asphalt read
   const c = document.createElement('canvas');
   c.width = c.height = 256;
   const ctx = c.getContext('2d');
   const gr = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-  gr.addColorStop(0, 'rgba(255, 232, 200, 0.32)');
-  gr.addColorStop(0.35, 'rgba(255, 210, 160, 0.14)');
+  gr.addColorStop(0, 'rgba(255, 232, 200, 0.48)');
+  gr.addColorStop(0.35, 'rgba(255, 210, 160, 0.22)');
   gr.addColorStop(1, 'rgba(255, 200, 140, 0)');
   ctx.fillStyle = gr;
   ctx.fillRect(0, 0, 256, 256);
@@ -1073,6 +1082,7 @@ export function makeStreetLights(THREE, size = 220) {
   const poolMat = new THREE.MeshBasicMaterial({
     map: poolTex,
     transparent: true,
+    opacity: 1,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     fog: false,
@@ -1084,48 +1094,56 @@ export function makeStreetLights(THREE, size = 220) {
   const poolG = new THREE.PlaneGeometry(1, 1);
   poolG.rotateX(-Math.PI / 2);
 
-  // Sparse placements along main roads (makeGround road lines)
-  // z-roads at ±size*0.12 / size*0.18; x-road at size*0.08
+  // Dense both-sides placements along makeGround asphalt roads
+  // z-roads at -size*0.12 / size*0.18; x-road at size*0.08
   const zRoads = [-size * 0.12, size * 0.18];
   const xRoad = size * 0.08;
-  const h = 5.2; // ~4–6 m relative plant scale
-  const poolD = 4.2; // 3–5 m diameter
-  const spacing = 22;
+  const h = 5.2;
+  const poolD = 5.2;
+  const spacing = 12;
+  const curb = 4.0;
   const lamps = [];
 
-  // Along horizontal roads — alternate north/south curb
   for (let ri = 0; ri < zRoads.length; ri++) {
     const z = zRoads[ri];
-    const xs = [];
-    for (let x = -size * 0.34; x <= size * 0.34 + 0.01; x += spacing) xs.push(x);
-    // Thin to ~3–4 per road → total ~6–8
-    const pick = xs.filter((_, i) => (i + ri) % 2 === 0).slice(0, 3);
-    for (let i = 0; i < pick.length; i++) {
-      const side = (i + ri) % 2 === 0 ? 1 : -1;
+    for (let x = -size * 0.38; x <= size * 0.38 + 0.01; x += spacing) {
+      // Both curbs; stagger opposite side by half spacing
+      for (const side of [-1, 1]) {
+        const xOff = side > 0 ? 0 : spacing * 0.5;
+        const xx = x + xOff;
+        if (xx < -size * 0.4 || xx > size * 0.4) continue;
+        lamps.push({
+          x: xx,
+          z: z + side * curb,
+          ry: side > 0 ? -Math.PI / 2 : Math.PI / 2,
+        });
+      }
+    }
+  }
+  // Cross road — both sides, denser
+  const zSpacing = 14;
+  for (let z = -size * 0.34; z <= size * 0.32 + 0.01; z += zSpacing) {
+    for (const side of [-1, 1]) {
+      const zOff = side > 0 ? 0 : zSpacing * 0.5;
+      const zz = z + zOff;
+      if (zz < -size * 0.36 || zz > size * 0.34) continue;
       lamps.push({
-        x: pick[i],
-        z: z + side * 4.0,
-        ry: side > 0 ? -Math.PI / 2 : Math.PI / 2,
+        x: xRoad + side * curb,
+        z: zz,
+        ry: side > 0 ? Math.PI : 0,
       });
     }
   }
-  // A couple on the cross road
-  for (const [z, side] of [[-size * 0.28, -1], [size * 0.26, 1]]) {
-    lamps.push({
-      x: xRoad + side * 4.0,
-      z,
-      ry: side > 0 ? Math.PI : 0,
-    });
-  }
-  // Cap at 10
-  const placed = lamps.slice(0, 10);
+
+  // Cap visual poles (teaching density, not stadium)
+  const placed = lamps.slice(0, 36);
 
   let lightBudget = 0;
-  const maxPointLights = 5;
+  const maxPointLights = 12;
   const lights = [];
 
-  for (const L of placed) {
-    const { x, z, ry } = L;
+  for (let li = 0; li < placed.length; li++) {
+    const { x, z, ry } = placed[li];
     const pole = new THREE.Mesh(poleG, poleMat);
     pole.scale.set(1, h, 1);
     pole.position.set(x, h / 2, z);
@@ -1147,11 +1165,12 @@ export function makeStreetLights(THREE, size = 220) {
 
     const pool = new THREE.Mesh(poolG, poolMat);
     pool.position.set(ax, 0.06, az);
-    pool.scale.set(poolD, 1, poolD * 0.85);
+    pool.scale.set(poolD, 1, poolD * 0.9);
     g.add(pool);
 
-    if (lightBudget < maxPointLights) {
-      const pl = new THREE.PointLight(0xffd8b0, 2.46, 16, 2);
+    // Point lights on every other pole to keep SoftGL budget sane
+    if (lightBudget < maxPointLights && li % 2 === 0) {
+      const pl = new THREE.PointLight(0xffd8b0, 6, 22, 2);
       pl.position.set(ax, h - 0.3, az);
       g.add(pl);
       lights.push(pl);
@@ -1169,6 +1188,125 @@ export function makeStreetLights(THREE, size = 220) {
   return g;
 }
 
+/** Teaching-示意 industrial trucks looping asphalt roads (metallic, takes IBL). */
+export function makeRoadTraffic(THREE, size = 220) {
+  const g = new THREE.Group();
+  g.name = 'roadTraffic';
+
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: 0x8a93a0, metalness: 0.78, roughness: 0.34, envMapIntensity: 1.15,
+  });
+  const cabMat = new THREE.MeshStandardMaterial({
+    color: 0xb0bac6, metalness: 0.85, roughness: 0.28, envMapIntensity: 1.25,
+  });
+  const bedMat = new THREE.MeshStandardMaterial({
+    color: 0x6a7380, metalness: 0.72, roughness: 0.4, envMapIntensity: 1.05,
+  });
+  const wheelMat = new THREE.MeshStandardMaterial({
+    color: 0x1a1c20, metalness: 0.35, roughness: 0.72, envMapIntensity: 0.55,
+  });
+  const accentMat = new THREE.MeshStandardMaterial({
+    color: 0xc45a12, metalness: 0.6, roughness: 0.38, envMapIntensity: 1.0,
+    emissive: 0xc45a12, emissiveIntensity: 0.04,
+  });
+
+  function makeTruck({ scale = 1, bedColor = 0x6a7380 } = {}) {
+    const t = new THREE.Group();
+    t.name = 'truck';
+    const bedM = bedMat.clone();
+    bedM.color.setHex(bedColor);
+
+    const chassis = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.35, 1.7), bodyMat);
+    chassis.position.y = 0.55;
+    chassis.castShadow = true;
+    const cab = new THREE.Mesh(new THREE.BoxGeometry(1.35, 1.15, 1.65), cabMat);
+    cab.position.set(-1.35, 1.25, 0);
+    cab.castShadow = true;
+    const windshield = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.55, 1.35),
+      new THREE.MeshStandardMaterial({
+        color: 0x8ec8e8, metalness: 0.9, roughness: 0.12, envMapIntensity: 1.4,
+        transparent: true, opacity: 0.55,
+      }),
+    );
+    windshield.position.set(-2.0, 1.35, 0);
+    const bed = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.05, 1.6), bedM);
+    bed.position.set(0.7, 1.15, 0);
+    bed.castShadow = true;
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.62, 0.12, 1.62), accentMat);
+    stripe.position.set(0.7, 0.72, 0);
+    const wheelG = new THREE.CylinderGeometry(0.38, 0.38, 0.28, 12);
+    const wheels = [];
+    for (const [wx, wz] of [[-1.4, 0.85], [-1.4, -0.85], [1.35, 0.85], [1.35, -0.85], [0.35, 0.85], [0.35, -0.85]]) {
+      const w = new THREE.Mesh(wheelG, wheelMat);
+      w.rotation.z = Math.PI / 2;
+      w.position.set(wx, 0.38, wz);
+      w.castShadow = true;
+      wheels.push(w);
+      t.add(w);
+    }
+    t.add(chassis, cab, windshield, bed, stripe);
+    t.scale.setScalar(scale);
+    t.userData.wheels = wheels;
+    return t;
+  }
+
+  const roadW = 7.2;
+  const zRoads = [-size * 0.12, size * 0.18];
+  const xRoad = size * 0.08;
+  const xMin = -size * 0.4;
+  const xMax = size * 0.4;
+  const zMin = -size * 0.34;
+  const zMax = size * 0.32;
+
+  // Lane offsets keep trucks off center dashes / clear of device pads a bit
+  const routes = [
+    { axis: 'x', z: zRoads[0] - 1.6, dir: 1, speed: 9.5, x0: xMin + 8, color: 0x6a7380, scale: 1.05 },
+    { axis: 'x', z: zRoads[0] + 1.6, dir: -1, speed: 8.2, x0: xMax - 20, color: 0x5a6878, scale: 0.95 },
+    { axis: 'x', z: zRoads[1] - 1.5, dir: 1, speed: 7.8, x0: xMin + 35, color: 0x7a6470, scale: 1.0 },
+    { axis: 'x', z: zRoads[1] + 1.5, dir: -1, speed: 10.2, x0: xMax - 5, color: 0x4a5a68, scale: 1.1 },
+    { axis: 'z', x: xRoad - 1.55, dir: 1, speed: 8.6, z0: zMin + 12, color: 0x687888, scale: 0.98 },
+    { axis: 'z', x: xRoad + 1.55, dir: -1, speed: 9.1, z0: zMax - 18, color: 0x706858, scale: 1.02 },
+  ];
+
+  const fleet = [];
+  for (const r of routes) {
+    const truck = makeTruck({ scale: r.scale, bedColor: r.color });
+    if (r.axis === 'x') {
+      truck.position.set(r.x0, 0, r.z);
+      truck.rotation.y = r.dir > 0 ? 0 : Math.PI;
+    } else {
+      truck.position.set(r.x, 0, r.z0);
+      truck.rotation.y = r.dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+    }
+    g.add(truck);
+    fleet.push({ truck, ...r });
+  }
+
+  g.userData.update = (dtMs) => {
+    const dt = Math.min(0.05, (dtMs || 16) / 1000);
+    for (const f of fleet) {
+      const { truck, axis, dir, speed } = f;
+      if (axis === 'x') {
+        truck.position.x += dir * speed * dt;
+        if (dir > 0 && truck.position.x > xMax) truck.position.x = xMin;
+        if (dir < 0 && truck.position.x < xMin) truck.position.x = xMax;
+        truck.rotation.y = dir > 0 ? 0 : Math.PI;
+      } else {
+        truck.position.z += dir * speed * dt;
+        if (dir > 0 && truck.position.z > zMax) truck.position.z = zMin;
+        if (dir < 0 && truck.position.z < zMin) truck.position.z = zMax;
+        truck.rotation.y = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+      }
+      const wheels = truck.userData.wheels || [];
+      for (const w of wheels) w.rotation.x += dir * speed * dt * 1.8;
+    }
+  };
+
+  g.userData.fleet = fleet;
+  return g;
+}
+
 /** 厂房地坪 — Haber 分层：外环暗地 + 混凝土主垫 + 沥青路 + 设备浅垫 */
 export function makeGround(THREE, size = 220) {
   const g = new THREE.Group();
@@ -1177,7 +1315,7 @@ export function makeGround(THREE, size = 220) {
   // 1) Outer dark field (fog apron) — look-dev bake
   const outer = new THREE.Mesh(
     new THREE.PlaneGeometry(size * 4.5, size * 4.5),
-    new THREE.MeshStandardMaterial({ color: 0x342704, roughness: 0.5, metalness: 0 }),
+    new THREE.MeshStandardMaterial({ color: 0x342704, roughness: 1, metalness: 0 }),
   );
   outer.rotation.x = -Math.PI / 2;
   outer.position.y = -0.05;
@@ -1194,7 +1332,7 @@ export function makeGround(THREE, size = 220) {
     roughness: 1,
     metalness: 0.04,
     emissive: 0x1a1e24,
-    emissiveIntensity: 0.04,
+    emissiveIntensity: 0.43,
   });
   const pad = new THREE.Mesh(new THREE.PlaneGeometry(size * 0.95, size * 0.78), padMat);
   pad.rotation.x = -Math.PI / 2;
@@ -1210,15 +1348,15 @@ export function makeGround(THREE, size = 220) {
   tAsphZ.repeat.set(2, Math.max(16, size / 8));
   tAsphZ.needsUpdate = true;
   const rdX = new THREE.MeshStandardMaterial({
-    color: 0x3a3e45, map: tAsphX, roughness: 0.32, metalness: 0.1,
+    color: 0x3a3e45, map: tAsphX, roughness: 0.36, metalness: 0.1,
   });
   const rdZ = new THREE.MeshStandardMaterial({
-    color: 0x3a3e45, map: tAsphZ, roughness: 0.32, metalness: 0.1,
+    color: 0x3a3e45, map: tAsphZ, roughness: 0.36, metalness: 0.1,
   });
   const paint = new THREE.MeshBasicMaterial({ color: 0xe8e8e0 });
   const curbMat = new THREE.MeshStandardMaterial({
     color: 0x9aa0a8, roughness: 1, metalness: 0.04,
-    emissive: 0x1c2026, emissiveIntensity: 0.95,
+    emissive: 0x1c2026, emissiveIntensity: 0.88,
   });
   const dashGX = new THREE.PlaneGeometry(3, 0.15);
   dashGX.rotateX(-Math.PI / 2);
@@ -1280,7 +1418,7 @@ export function makeGround(THREE, size = 220) {
   tUnit.repeat.set(6, 6);
   tUnit.needsUpdate = true;
   const unitMat = new THREE.MeshStandardMaterial({
-    color: 0x9aa2aa, map: tUnit, roughness: 0.59, metalness: 0.03,
+    color: 0x9aa2aa, map: tUnit, roughness: 0.8, metalness: 0.03,
     emissive: 0x22262c, emissiveIntensity: 1.4,
   });
   // Relative pads cover feed / reactor / sep-comp / product (scale with size)
@@ -1298,9 +1436,11 @@ export function makeGround(THREE, size = 220) {
     g.add(u);
   }
 
-  // M8 street lamps ride with ground so p=7|8|9 share one placement
+  // M8 street lamps + looping transport trucks (shared p=7|8|9)
   const street = makeStreetLights(THREE, size);
   g.add(street);
+  const traffic = makeRoadTraffic(THREE, size);
+  g.add(traffic);
 
   g.userData.env = {
     outerMat: outer.material,
@@ -1310,6 +1450,7 @@ export function makeGround(THREE, size = 220) {
     curbMat,
     street: street.userData.env,
   };
+  g.userData.traffic = traffic;
 
   return g;
 }

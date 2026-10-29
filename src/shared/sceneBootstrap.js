@@ -29,19 +29,19 @@ export function createScene(canvas, { Q = 'high' } = {}) {
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, Q === 'low' ? 1 : 1.75));
   renderer.setSize(innerWidth, innerHeight, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.AgXToneMapping;
-  // Look-dev bake: AgX + exposure 2.2 (envTweak CODE_DEFAULTS)
-  renderer.toneMappingExposure = preset.exposure ?? 2.2;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  // Look-dev bake: ACESFilmic + exposure 0.47 (envTweak CODE_DEFAULTS)
+  renderer.toneMappingExposure = preset.exposure ?? 0.47;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
   // PMREM IBL + FogExp2; solid look-dev bg (mountains kept)
   const envMaps = applySkyAndFog(scene, renderer, {
-    fogDensity: preset.fog ?? 0.0011,
-    fogColor: preset.fogColor ?? 0x0029cc,
+    fogDensity: preset.fog ?? 0.002,
+    fogColor: preset.fogColor ?? 0x20245b,
     background: preset.background ?? 0x6a8dd2,
-    envIntensity: preset.envIntensity ?? 1.36,
+    envIntensity: preset.envIntensity ?? 2.5,
   });
   addMountains(scene, { count: 36, rMin: 350, rMax: 700 });
 
@@ -70,8 +70,8 @@ export function createScene(canvas, { Q = 'high' } = {}) {
   const hemi = new THREE.HemisphereLight(0xfea62a, 0x0060fa, 3 * fillMul);
   scene.add(hemi);
 
-  const key = new THREE.DirectionalLight(0xfece67, 3.28 * sunMul);
-  key.position.set(0.5, 16.2, -7.5);
+  const key = new THREE.DirectionalLight(0xfece67, 3.16 * sunMul);
+  key.position.set(-7.3, 32.1, -6.4);
   key.target.position.set(0, 2, 0);
   key.castShadow = true;
   key.shadow.mapSize.set(preset.shadow, preset.shadow);
@@ -88,20 +88,20 @@ export function createScene(canvas, { Q = 'high' } = {}) {
   scene.add(key.target);
 
   // Cool fill
-  const fill = new THREE.DirectionalLight(0x8fc0ff, 4 * fillMul);
+  const fill = new THREE.DirectionalLight(0x8fc0ff, 3.08 * fillMul);
   fill.position.set(6.8, 10, 12.9);
   scene.add(fill);
 
   // Rim
-  const rim = new THREE.DirectionalLight(0xfef6f6, 0.91 * rimMul);
-  rim.position.set(-10.6, 23.7, 10);
+  const rim = new THREE.DirectionalLight(0xfef6f6, 0.55 * rimMul);
+  rim.position.set(0, 23.7, 10);
   scene.add(rim);
 
-  // Plant area lights (cyan look-dev)
-  const plantA = new THREE.PointLight(0x00fbff, 1.88, 110, 2);
+  // Plant area lights (warm amber look-dev)
+  const plantA = new THREE.PointLight(0xfe7606, 4, 110, 2);
   plantA.position.set(8, 18, 6);
   scene.add(plantA);
-  const plantB = new THREE.PointLight(0x00fbff, 1.87, 100, 2);
+  const plantB = new THREE.PointLight(0xfe7606, 1.87, 100, 2);
   plantB.position.set(-18, 14, -10);
   scene.add(plantB);
 
@@ -129,7 +129,7 @@ export function createScene(canvas, { Q = 'high' } = {}) {
   let bokeh = null;
   if (preset.dof) {
     bokeh = new BokehPass(scene, camera, {
-      focus: 156,
+      focus: preset.focus ?? 233,
       aperture: preset.aperture,
       maxblur: preset.maxblur,
     });
@@ -145,15 +145,15 @@ export function createScene(canvas, { Q = 'high' } = {}) {
   const outputPass = new OutputPass();
   composer.addPass(outputPass);
 
-  // Overview = mild DOF (preset); close = 大光圈 when flying to device/step
+  // DOF apertures 0 = effectively off blur; keep flag/pass for teaching toggle
   const DOF_MODES = {
     overview: {
-      aperture: preset.aperture || 0.000175,
-      maxblur: preset.maxblur || 0.0104,
+      aperture: preset.aperture ?? 0,
+      maxblur: preset.maxblur ?? 0,
     },
     close: {
-      aperture: 0.000112,
-      maxblur: 0.0127,
+      aperture: preset.apertureClose ?? 0,
+      maxblur: preset.maxblurClose ?? 0,
     },
   };
   let dofMode = 'overview';

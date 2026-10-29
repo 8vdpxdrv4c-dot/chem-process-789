@@ -10,12 +10,13 @@
  * Shot scripts pass ?softShot=1 (or call applySoftGLShotGrade) so SoftGL
  * captures are graded darker to approximate a typical real-GPU reading.
  */
+import { refreshDeviceEnvMaps } from './devices.js';
 
-/** Calibrated against SoftGL look-dev bake (exposure 2.2 / env 1.36 / bloom 0.59). */
+/** SoftGL vs real-GPU: milder muls for ACESFilmic + exposure 0.47 bake. */
 export const SOFTGL_SHOT_GRADE = Object.freeze({
-  exposureMul: 0.48,
-  envIntensityMul: 0.75,
-  bloomMul: 0.4,
+  exposureMul: 0.88,
+  envIntensityMul: 0.9,
+  bloomMul: 0.75,
   badgeText: 'SoftGL 示意 · 真机偏暗',
 });
 
@@ -58,9 +59,19 @@ export function applySoftGLShotGrade(S, opts = {}) {
 
   const before = snapshotGrade(S);
   S.renderer.toneMappingExposure = Math.max(0.01, before.exposure * exposureMul);
-  if ('environmentIntensity' in S.scene && before.envIntensity != null) {
-    S.scene.environmentIntensity = Math.max(0, before.envIntensity * envIntensityMul);
+  const nextEnv = (before.envIntensity != null)
+    ? Math.max(0, before.envIntensity * envIntensityMul)
+    : null;
+  if ('environmentIntensity' in S.scene && nextEnv != null) {
+    S.scene.environmentIntensity = nextEnv;
   }
+  // Explicit material.envMap ignores scene.environmentIntensity — re-bake scale
+  try {
+    refreshDeviceEnvMaps(S.scene, S.scene, {
+      intensityScale: nextEnv != null ? nextEnv : 1,
+      enabled: !!S.scene?.environment,
+    });
+  } catch (_) { /* ignore */ }
   if (S.bloom && before.bloomStrength != null) {
     S.bloom.strength = Math.max(0, before.bloomStrength * bloomMul);
     S.bloom.enabled = S.bloom.strength > 0;
@@ -90,6 +101,12 @@ export function clearSoftGLShotGrade(S) {
   if ('environmentIntensity' in S.scene && b.envIntensity != null) {
     S.scene.environmentIntensity = b.envIntensity;
   }
+  try {
+    refreshDeviceEnvMaps(S.scene, S.scene, {
+      intensityScale: b.envIntensity != null ? b.envIntensity : 1,
+      enabled: !!S.scene?.environment,
+    });
+  } catch (_) { /* ignore */ }
   if (S.bloom && b.bloomStrength != null) {
     S.bloom.strength = b.bloomStrength;
     S.bloom.enabled = b.bloomEnabled;

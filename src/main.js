@@ -9,7 +9,12 @@ import { detectQuality } from './shared/quality.js';
 import { createScene } from './shared/sceneBootstrap.js';
 import { refreshDeviceEnvMaps } from './shared/devices.js';
 import { createHUD } from './shared/hud.js';
-import { collectEnvHandles, createEnvPanel, snapshotParams } from './shared/envTweak.js';
+import {
+  CODE_DEFAULTS,
+  applyEnvParams,
+  collectEnvHandles,
+  createEnvPanel,
+} from './shared/envTweak.js';
 import {
   applySoftGLShotGrade,
   clearSoftGLShotGrade,
@@ -61,10 +66,14 @@ async function boot() {
   }
   const process = await loadProcess(processId);
   const plant = buildPlant(THREE, scene, process);
-  // Ensure Standard/Physical device mats pick up Zipper PMREM + envMapIntensity
+  // Ensure Standard/Physical device mats pick up Zipper PMREM.
+  // Explicit envMap bypasses scene.environmentIntensity — bake CODE_DEFAULTS.envIntensity.
   try {
-    const n = refreshDeviceEnvMaps(scene, scene);
-    console.info('[materials] refreshDeviceEnvMaps', n);
+    const n = refreshDeviceEnvMaps(scene, scene, {
+      intensityScale: CODE_DEFAULTS.envIntensity,
+      enabled: CODE_DEFAULTS.envMapEnabled,
+    });
+    console.info('[materials] refreshDeviceEnvMaps', n, 'envIntensity', CODE_DEFAULTS.envIntensity);
   } catch (err) {
     console.warn('[materials] refreshDeviceEnvMaps failed', err);
   }
@@ -310,10 +319,16 @@ async function boot() {
 
   let last = performance.now();
   let frames = 0, tAcc = 0;
+  const roadTraffic = scene.getObjectByName('roadTraffic');
+
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min(40, now - last);
     last = now;
+    if (roadTraffic?.userData?.update) {
+      roadTraffic.userData.update(dt);
+      dirty = true;
+    }
     if (fly.update(dt) || controls.update()) dirty = true;
     if (!dirty) return;
     dirty = false;
@@ -347,10 +362,11 @@ async function boot() {
   window.__booted = true;
   window.__ready = true;
   const envHandles = collectEnvHandles(S);
-  const envDefaults = snapshotParams(envHandles);
+  // Bake CODE_DEFAULTS into live scene (boot + Reset source of truth)
+  applyEnvParams(envHandles, CODE_DEFAULTS, { skipPersist: true });
   const envPanel = createEnvPanel(envHandles, {
     markDirty: () => { dirty = true; },
-    defaults: envDefaults,
+    defaults: { ...CODE_DEFAULTS },
   });
 
   window.__app = {
