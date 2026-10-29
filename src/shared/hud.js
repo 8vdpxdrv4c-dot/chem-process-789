@@ -38,7 +38,7 @@ export function createHUD(root, {
       <span id="eqRxn">${process.reactionHtml || ''}</span>
       <span class="dh" id="eqDh">${process.dh || ''}</span>
     </div>
-    <div class="rail glass" id="rail"><div class="hd">流程</div></div>
+    <div class="rail glass" id="rail"><div class="hd">课时步骤</div></div>
     <div class="sfbtn" id="sfbtn">⚠ 报警演示</div>
     <div class="lel glass" id="lel">
       <div class="k">可燃气体 · %LEL</div>
@@ -75,7 +75,7 @@ export function createHUD(root, {
     </div>
     <div class="flow glass" id="flow">
       <div class="hd">
-        <span>工艺流程</span>
+        <span>物料流向</span>
         <span class="lg">${legend}</span>
       </div>
       <div class="chain" id="chain">${flowNodes}</div>

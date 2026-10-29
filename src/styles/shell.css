@@ -308,6 +308,7 @@ html,body{width:100%;height:100%;background:#000;overflow:hidden;font-family:var
 .nd{
   font-size:13px;font-weight:700;color:#dbe8fa;padding:6px 9px;border-radius:7px;
   background:rgba(80,140,220,.12);border:1px solid rgba(150,200,255,.2);white-space:nowrap;
+  cursor:default;pointer-events:none;user-select:none;
 }
 .nd.on{
   color:#04121c;background:linear-gradient(180deg,#ffd0a0,#ff9a50);
