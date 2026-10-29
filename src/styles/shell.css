@@ -387,7 +387,7 @@ svg#lead{position:absolute;inset:0;pointer-events:none;z-index:4}
 .lel .v small{font-size:12px;color:var(--muted2);font-weight:600}
 .lb.alarm{border-color:rgba(255,71,87,.65);box-shadow:0 0 20px rgba(255,71,87,.4)}
 .lb.alarm b{background:var(--danger);color:#fff;box-shadow:0 0 12px rgba(255,71,87,.8)}
-.lb.off{opacity:0;pointer-events:none}
+.lb.off{opacity:0;visibility:hidden;pointer-events:none}
 .dock-ctrl button{cursor:pointer}
 .dock-ctrl button.on{background:linear-gradient(180deg,#ffd0a0,#ff9a50);color:#04121c;border:none}
 #card{display:none}

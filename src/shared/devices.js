@@ -1212,6 +1212,12 @@ export function makeRoadTraffic(THREE, size = 220) {
     emissive: 0xc45a12, emissiveIntensity: 0.04,
   });
 
+  // Local -X is cab/windshield (visual front). Orient so -X faces travel.
+  const headlampMat = new THREE.MeshStandardMaterial({
+    color: 0xfff2d0, metalness: 0.2, roughness: 0.25,
+    emissive: 0xffe0a8, emissiveIntensity: 3.4, envMapIntensity: 0.3,
+  });
+
   function makeTruck({ scale = 1, bedColor = 0x6a7380 } = {}) {
     const t = new THREE.Group();
     t.name = 'truck';
@@ -1247,9 +1253,28 @@ export function makeRoadTraffic(THREE, size = 220) {
       wheels.push(w);
       t.add(w);
     }
-    t.add(chassis, cab, windshield, bed, stripe);
+    // Emissive lamp housings on cab front (local -X)
+    const lampG = new THREE.BoxGeometry(0.12, 0.16, 0.28);
+    const lampL = new THREE.Mesh(lampG, headlampMat);
+    lampL.position.set(-2.05, 0.95, 0.52);
+    const lampR = new THREE.Mesh(lampG, headlampMat);
+    lampR.position.set(-2.05, 0.95, -0.52);
+    t.add(chassis, cab, windshield, bed, stripe, lampL, lampR);
+
+    // One SpotLight per truck: warm beam lighting asphalt ahead of travel
+    const spot = new THREE.SpotLight(0xffe6c0, 4.2, 38, Math.PI / 7, 0.42, 1.35);
+    spot.position.set(-2.15, 1.05, 0);
+    spot.castShadow = false;
+    const spotTarget = new THREE.Object3D();
+    spotTarget.position.set(-16, 0.15, 0); // local -X = forward once oriented
+    t.add(spot);
+    t.add(spotTarget);
+    spot.target = spotTarget;
+
     t.scale.setScalar(scale);
     t.userData.wheels = wheels;
+    t.userData.headlight = spot;
+    t.userData.headlightTarget = spotTarget;
     return t;
   }
 
@@ -1271,17 +1296,25 @@ export function makeRoadTraffic(THREE, size = 220) {
     { axis: 'z', x: xRoad + 1.55, dir: -1, speed: 9.1, z0: zMax - 18, color: 0x706858, scale: 1.02 },
   ];
 
+  /** Face local -X (cab) along travel heading. */
+  function headingY(axis, dir) {
+    if (axis === 'x') return dir > 0 ? Math.PI : 0;           // +X travel → face +X
+    return dir > 0 ? Math.PI / 2 : -Math.PI / 2;              // +Z travel → face +Z
+  }
+
+  const _fwd = new THREE.Vector3();
   const fleet = [];
   for (const r of routes) {
     const truck = makeTruck({ scale: r.scale, bedColor: r.color });
     if (r.axis === 'x') {
       truck.position.set(r.x0, 0, r.z);
-      truck.rotation.y = r.dir > 0 ? 0 : Math.PI;
     } else {
       truck.position.set(r.x, 0, r.z0);
-      truck.rotation.y = r.dir > 0 ? -Math.PI / 2 : Math.PI / 2;
     }
+    truck.rotation.y = headingY(r.axis, r.dir);
     g.add(truck);
+    // SpotLight.target must live in the scene graph root path
+    if (truck.userData.headlightTarget) g.add(truck.userData.headlightTarget);
     fleet.push({ truck, ...r });
   }
 
@@ -1293,12 +1326,27 @@ export function makeRoadTraffic(THREE, size = 220) {
         truck.position.x += dir * speed * dt;
         if (dir > 0 && truck.position.x > xMax) truck.position.x = xMin;
         if (dir < 0 && truck.position.x < xMin) truck.position.x = xMax;
-        truck.rotation.y = dir > 0 ? 0 : Math.PI;
       } else {
         truck.position.z += dir * speed * dt;
         if (dir > 0 && truck.position.z > zMax) truck.position.z = zMin;
         if (dir < 0 && truck.position.z < zMin) truck.position.z = zMax;
-        truck.rotation.y = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+      }
+      truck.rotation.y = headingY(axis, dir);
+      // Keep headlight beam target on asphalt ahead of travel
+      const spot = truck.userData.headlight;
+      const tgt = truck.userData.headlightTarget;
+      if (spot && tgt) {
+        const yaw = truck.rotation.y;
+        // Local -X forward after headingY: world dir = (-cos(yaw), 0, sin(yaw))?
+        // rotation.y maps local (-1,0,0) → (-cos(y), 0, sin(y))
+        _fwd.set(-Math.cos(yaw), 0, Math.sin(yaw));
+        tgt.position.set(
+          truck.position.x + _fwd.x * 18,
+          0.2,
+          truck.position.z + _fwd.z * 18,
+        );
+        spot.target = tgt;
+        spot.target.updateMatrixWorld?.();
       }
       const wheels = truck.userData.wheels || [];
       for (const w of wheels) w.rotation.x += dir * speed * dt * 1.8;

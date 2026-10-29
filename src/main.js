@@ -79,22 +79,24 @@ async function boot() {
   }
   const fly = createFlyController({ camera, controls, THREE });
 
-  /* labels */
+  /* labels — fixed screen offset from world anchor; hide when out of view.
+   * No per-frame collision nudge / card shove (that made tags jump). */
   const tmp = new THREE.Vector3();
-  // 全景易丢的右侧设备：优先外偏，避免挤到知识卡下消失
   const LABEL_BIAS = {
-    H07: [85, -110], H09: [110, -150], H11: [95, -85],
-    H05: [40, -100], H08: [55, -80], H06: [50, -60],
-    H01: [-40, -70], H02: [-30, -50], H03: [-35, -80], H04: [20, -55], H10: [-20, -40],
-    F01: [-40, -70], F02: [-30, -80], F04: [40, -100], F05: [50, -70],
-    F07: [70, -90], F08: [60, -60], F03: [20, -50], F06: [40, -55],
-    D01: [40, -100], D02: [-50, -80], D03: [70, -60], D04: [-60, -70],
-    D05: [-45, -90], D06: [80, -50], D07: [30, -120], D09: [-20, -70],
+    H07: [48, -72], H09: [56, -88], H11: [52, -64],
+    H05: [36, -64], H08: [40, -56], H06: [36, -48],
+    H01: [-36, -56], H02: [-28, -44], H03: [-32, -56], H04: [24, -48], H10: [-20, -40],
+    F01: [-36, -56], F02: [-28, -56], F04: [36, -64], F05: [40, -52],
+    F07: [48, -64], F08: [40, -48], F03: [20, -44], F06: [32, -48],
+    D01: [36, -64], D02: [-40, -56], D03: [48, -48], D04: [-44, -52],
+    D05: [-36, -60], D06: [52, -44], D07: [28, -72], D09: [-20, -52],
   };
+  /** NDC margin: hide once anchor leaves frustum (+ small edge pad). */
+  const LABEL_NDC_MARGIN = 1.02;
 
   const labelNodes = (plant.labels || []).map(([id, name, sub, pos]) => {
     const el = document.createElement('div');
-    el.className = 'lb';
+    el.className = 'lb off';
     el.innerHTML = `<b>${id}</b><div><span class="nm">${name}</span><span class="st">${sub}</span></div>`;
     el.dataset.id = id;
     labelsEl.appendChild(el);
@@ -106,7 +108,7 @@ async function boot() {
     return { id, pos, el, w: 170, h: 44, dx: bias[0], dy: bias[1] };
   });
 
-  // measure after paint
+  // measure after paint (lead-line attach only; never used to shove position)
   requestAnimationFrame(() => {
     labelNodes.forEach((l) => {
       const r = l.el.getBoundingClientRect();
@@ -116,60 +118,36 @@ async function boot() {
   });
 
   function proj(p) {
+    // Camera looks down -Z: in front ⇒ camera-space z < 0
+    tmp.copy(p).applyMatrix4(camera.matrixWorldInverse);
+    if (tmp.z >= 0) return { x: 0, y: 0, ok: false };
     tmp.copy(p).project(camera);
+    const inView = Math.abs(tmp.x) <= LABEL_NDC_MARGIN && Math.abs(tmp.y) <= LABEL_NDC_MARGIN;
     return {
       x: (tmp.x * 0.5 + 0.5) * 1920,
       y: (-tmp.y * 0.5 + 0.5) * 1080,
-      ok: tmp.z < 1 && Math.abs(tmp.x) < 1.25 && Math.abs(tmp.y) < 1.25,
+      ok: inView,
     };
   }
 
   function updateLabels() {
     let svg = '';
-    const placed = [];
-    // 右侧远设备优先布局，减少被挤掉
-    const order = [...labelNodes].sort((a, b) => {
-      const pri = (id) => (/H0[791]|H11|F0[178]/.test(id) ? 0 : 1);
-      return pri(a.id) - pri(b.id);
-    });
-    for (const l of order) {
+    for (const l of labelNodes) {
       const s = proj(l.pos);
-      if (!s.ok) { l.el.classList.add('off'); continue; }
+      if (!s.ok) {
+        l.el.classList.add('off');
+        continue;
+      }
       l.el.classList.remove('off');
-      const cardOpen = !!document.querySelector('#card.show');
-      // 知识卡 right:44 width:480 → 可用右缘约 1396；卡打开时强制避让
-      const rightMax = (cardOpen ? 1920 - 540 : 1920 - 48) - l.w;
-      const leftMin = 240;
-      let x = THREE.MathUtils.clamp(s.x + l.dx, leftMin, Math.max(leftMin + 20, rightMax));
-      let y = THREE.MathUtils.clamp(s.y + l.dy, 100, 1080 - 140 - l.h);
-      // 右侧关键设备：卡打开时抬到卡顶之上或卡左缘
-      if (cardOpen && /^(H07|H09|H11|F07|F08|F10)$/.test(l.id)) {
-        const slot = { H09: 0, H07: 1, H11: 2, F07: 0, F08: 1, F10: 2 }[l.id] || 0;
-        y = Math.min(y, 108 + slot * 52);
-        x = Math.min(x, rightMax);
-      }
-      let box = { left: x, right: x + l.w, top: y, bottom: y + l.h };
-      for (let it = 0; it < 14; it++) {
-        let hit = false;
-        for (const o of placed) {
-          if (box.left < o.right + 10 && box.right > o.left - 10 && box.top < o.bottom + 8 && box.bottom > o.top - 8) {
-            const push = (o.bottom - box.top) + 10;
-            y += push;
-            box.top += push; box.bottom += push;
-            hit = true;
-          }
-        }
-        if (!hit) break;
-      }
-      y = THREE.MathUtils.clamp(y, 100, 1080 - 140 - l.h);
-      box = { left: x, right: x + l.w, top: y, bottom: y + l.h };
-      placed.push(box);
+      // Stable screen offset from projected anchor — no clamp/collision/card push
+      const x = s.x + l.dx;
+      const y = s.y + l.dy;
       l.el.style.left = '0';
       l.el.style.top = '0';
       l.el.style.transform = `translate(${x}px, ${y}px)`;
       const c = l.el.classList.contains('hero') ? '#ffb06a' : (l.el.classList.contains('alarm') ? '#ff4757' : '#2ff3ff');
-      const ex = Math.max(box.left + 16, Math.min(box.right - 16, s.x));
-      const ey = box.bottom < s.y ? box.bottom : box.top;
+      const ex = x + Math.min(l.w * 0.35, 40);
+      const ey = y + l.h;
       svg += `<polyline points="${s.x.toFixed(1)},${s.y.toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}" fill="none" stroke="${c}" stroke-opacity=".85" stroke-width="1.4"/><circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="4" fill="${c}"/><circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="8" fill="none" stroke="${c}" stroke-opacity=".45"/>`;
     }
     lead.innerHTML = svg;
