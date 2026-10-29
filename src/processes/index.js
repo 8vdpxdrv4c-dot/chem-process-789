@@ -44,7 +44,7 @@ export function processList() {
   return META.map(({ id, key, short }) => ({ id, key, short }));
 }
 
-export function buildPlant(THREE, scene, process) {
+export function buildPlant(THREE, scene, process, opts = {}) {
   const fn = BUILDERS[process.id] || BUILDERS[8];
-  return fn(THREE, scene);
+  return fn(THREE, scene, opts);
 }

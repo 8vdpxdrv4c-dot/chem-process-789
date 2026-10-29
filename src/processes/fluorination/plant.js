@@ -5,13 +5,17 @@ import {
   makeBundTank, makeGlassLinedReactor, makeScrubber,
   makeDelugeRing, makeEsdPanel, makeF2CylinderRack,
 } from '../../shared/devices.js';
+import { createFlowNetwork } from '../../shared/fx/pipeFlow.js';
+import { createSteamMist } from '../../shared/fx/steamMist.js';
 
 /**
  * 工艺 7 · 氟化厂区（对照 equipment-refs-789/fluorination + designer-f-id-map）
  * HF 主路线色 #c8e86c；禁止当安全绿 #3dd68c。
  * F₂ 对比架默认隐藏。
+ * Demo FX: HF/organic/product pipe flow + F07 scrubber mist (pale, not HF).
  */
-export function buildFluorinationPlant(THREE, scene) {
+export function buildFluorinationPlant(THREE, scene, opts = {}) {
+  const softGL = !!opts.softGL;
   const root = new THREE.Group();
   root.name = 'fluorinationPlant';
   root.add(makeGround(THREE, 240));
@@ -158,6 +162,74 @@ export function buildFluorinationPlant(THREE, scene) {
     ['F09', '危险法兰', '双密封 · 泄漏点', anchors.F09],
     ['F10', 'ESD 面板', '急停示意', anchors.F10],
   ];
+
+  /* —— Demo FX: HF / organic / product flows + scrubber mist —— */
+  const flows = createFlowNetwork(THREE, [
+    {
+      tag: 'HF',
+      name: 'flowHF',
+      color: COLORS.HF, // #c8e86c — NOT safe_green
+      medium: 'liquid',
+      radius: 0.3,
+      speed: 1.05,
+      particleCount: softGL ? 20 : 36,
+      points: [
+        [-52, 7, -8], [-38, 6.8, -4], [-26, 5.5, -2], [-12, 6.5, 2], [0, 8, 0],
+      ],
+    },
+    {
+      tag: 'organic',
+      name: 'flowOrganic',
+      color: COLORS.organic_in,
+      medium: 'liquid',
+      radius: 0.26,
+      speed: 0.9,
+      particleCount: softGL ? 16 : 28,
+      points: [
+        [-52, 6, 14], [-40, 5.5, 8], [-26, 5.0, 2], [-10, 6, 0], [0, 7.5, 0],
+      ],
+    },
+    {
+      tag: 'product',
+      name: 'flowFluorProduct',
+      color: COLORS.fluor_product,
+      medium: 'liquid',
+      radius: 0.26,
+      speed: 0.85,
+      particleCount: softGL ? 16 : 30,
+      points: [
+        [0, 8, 0], [14, 7, -3], [28, 8, -6], [40, 7, 0], [50, 6, 4], [66, 6, 12],
+      ],
+    },
+    {
+      tag: 'tail',
+      name: 'flowTailGas',
+      color: COLORS.HF,
+      medium: 'gas',
+      radius: 0.2,
+      speed: 1.1,
+      particleCount: softGL ? 14 : 24,
+      points: [
+        [0, 14, 0], [14, 13, -2], [28, 12, -4], [40, 14, 0], [50, 16, 2],
+      ],
+    },
+  ], softGL);
+  root.add(flows.root);
+
+  // Scrubber mist: pale cyan/white — NOT HF warning color
+  const scrubMist = createSteamMist(THREE, {
+    position: { x: 50, y: 18.2, z: 2 },
+    color: '#b0c4e0',
+    count: softGL ? 40 : 70,
+    rise: 5.5,
+    spread: 1.8,
+    softGL,
+    name: 'F07ScrubMist',
+  });
+  root.add(scrubMist.root);
+
+  let fxStep = 0;
+  let fxPlaying = false;
 
   function setCutaway(on) {
     const ud = F04.userData;
@@ -308,6 +380,32 @@ export function buildFluorinationPlant(THREE, scene) {
     };
   }
 
+  function setFxStep(i, step, { playing = false } = {}) {
+    fxStep = i | 0;
+    fxPlaying = !!playing;
+    const focus = step?.focus;
+    let tags = [];
+    if (fxStep === 0) tags = [];
+    else if (focus === 'F01' || fxStep === 1) tags = ['HF', 'organic'];
+    else if (focus === 'F03' || fxStep === 2) tags = ['HF', 'organic'];
+    else if (focus === 'F04' || fxStep === 3) tags = ['HF', 'organic', 'product'];
+    else if (focus === 'F05' || fxStep === 4) tags = ['product', 'tail'];
+    else if (focus === 'F07' || fxStep === 5) tags = ['tail', 'HF'];
+    else if (step?.safetyMode || fxStep === 6) tags = ['HF'];
+    flows.applyStepBoost(tags, { idle: 0.48, active: 1.0, playing: fxPlaying });
+    const mistBoost = (focus === 'F07' || fxStep === 5 || fxStep === 0)
+      ? (fxPlaying ? 1.35 : 1.0)
+      : 0.55;
+    scrubMist.setBoost(mistBoost);
+  }
+
+  function update(dt, ctx = {}) {
+    const elapsed = ctx.elapsed ?? 0;
+    if (ctx.playing != null) fxPlaying = !!ctx.playing;
+    flows.update(dt, elapsed);
+    scrubMist.update(dt);
+  }
+
   function reset() {
     setCutaway(false);
     setF2Contrast(false);
@@ -316,10 +414,15 @@ export function buildFluorinationPlant(THREE, scene) {
     wash.visible = false; washMat.opacity = 0;
     alarmLight.intensity = 0;
     setEsdFlash(false);
+    setFxStep(0, { focus: 'F04' }, { playing: false });
   }
+
+  setFxStep(0, { focus: 'F04' }, { playing: false });
 
   return {
     root, devices, anchors, labels,
     setCutaway, setF2Contrast, triggerAlarm, reset,
+    update, setFxStep,
+    fx: { flows, scrubMist },
   };
 }

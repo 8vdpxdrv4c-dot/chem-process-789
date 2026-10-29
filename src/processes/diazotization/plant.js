@@ -4,13 +4,18 @@ import {
   makeJacketedKettle, makeChillerSkid, makeHeadTank,
   makeQuenchTank, makeReliefVent,
 } from '../../shared/devices.js';
+import { createFlowNetwork } from '../../shared/fx/pipeFlow.js';
+import { createJacketPulse } from '../../shared/fx/steamMist.js';
 
 /**
  * 工艺 9 · 重氮化（对照 equipment-refs-789/diazotization + designer-d-id-map）
  * 低温单元：0～5 ℃；冰蓝夹套 #6ec8ff；重氮盐 #ff6b4a
  * 偶合 D08 默认关；事故 = 受热分解示意（N₂ 暴涌）→ 稀释回正；禁止燃爆/%LEL
+ * Demo FX: coolant / nitrite / acid-amine flow cues + cold jacket pulse.
+ * No Sandmeyer mislabel; no H2/%LEL; coupling only via setCoupling.
  */
-export function buildDiazotizationPlant(THREE, scene) {
+export function buildDiazotizationPlant(THREE, scene, opts = {}) {
+  const softGL = !!opts.softGL;
   const root = new THREE.Group();
   root.name = 'diazotizationPlant';
   root.add(makeGround(THREE, 200));
@@ -152,6 +157,68 @@ export function buildDiazotizationPlant(THREE, scene) {
     if (!on && idx >= 0) labels.splice(idx, 1);
   }
 
+  /* —— Demo FX: coolant / nitrite / feed flows + jacket pulse —— */
+  const flows = createFlowNetwork(THREE, [
+    {
+      tag: 'coolant',
+      name: 'flowCoolant',
+      color: COLORS.coolant,
+      medium: 'liquid',
+      radius: 0.28,
+      speed: 1.0,
+      particleCount: softGL ? 20 : 36,
+      points: [
+        [18, 3.5, -14], [10, 4.5, -10], [4, 6.5, -6], [0, 5.5, -2], [0, 4.5, 0],
+        [-2, 6.5, -4], [-4, 7.0, -8], [4, 7.2, -8], [10, 5, -10], [18, 3.8, -12],
+      ],
+    },
+    {
+      tag: 'nitrite',
+      name: 'flowNitrite',
+      color: COLORS.nitrite,
+      medium: 'liquid',
+      radius: 0.18,
+      speed: 0.7,
+      particleCount: softGL ? 12 : 22,
+      points: [
+        [-16, 9.5, 8], [-10, 9.0, 5], [-4, 8.5, 2], [0, 9.2, 0],
+      ],
+    },
+    {
+      tag: 'amine',
+      name: 'flowAmine',
+      color: COLORS.aniline,
+      medium: 'liquid',
+      radius: 0.2,
+      speed: 0.75,
+      particleCount: softGL ? 12 : 22,
+      points: [
+        [-22, 7, -10], [-14, 6.5, -6], [-6, 6, -2], [0, 6.5, 0],
+      ],
+    },
+    {
+      tag: 'acid',
+      name: 'flowAcid',
+      color: COLORS.acid,
+      medium: 'liquid',
+      radius: 0.2,
+      speed: 0.7,
+      particleCount: softGL ? 12 : 20,
+      points: [
+        [-28, 5, -6], [-18, 5.5, -4], [-8, 5.8, -2], [0, 6, 0],
+      ],
+    },
+  ], softGL);
+  root.add(flows.root);
+
+  const jacketPulse = createJacketPulse(D01.userData?.jacket, THREE, {
+    color: COLORS.coolant,
+    softGL,
+  });
+
+  let fxStep = 0;
+  let fxPlaying = false;
+
   function setCutaway(on) {
     const ud = D01.userData;
     if (ud.cutawayTarget) {
@@ -262,6 +329,32 @@ export function buildDiazotizationPlant(THREE, scene) {
     };
   }
 
+  function setFxStep(i, step, { playing = false } = {}) {
+    fxStep = i | 0;
+    fxPlaying = !!playing;
+    const focus = step?.focus;
+    let tags = [];
+    if (fxStep === 0) tags = [];
+    else if (focus === 'D05' || fxStep === 1) tags = ['amine', 'acid'];
+    else if (focus === 'D03' || fxStep === 2) tags = ['coolant'];
+    else if (focus === 'D01' && fxStep === 3) tags = ['nitrite', 'coolant'];
+    else if (focus === 'D01' || fxStep === 4) tags = ['coolant', 'nitrite'];
+    else if (focus === 'D06' || fxStep === 5) tags = ['coolant'];
+    else if (step?.safetyMode || fxStep === 6) tags = ['coolant'];
+    flows.applyStepBoost(tags, { idle: 0.5, active: 1.0, playing: fxPlaying });
+    const jp = (focus === 'D01' || focus === 'D03' || fxStep === 2 || fxStep === 3 || fxStep === 4 || fxStep === 0)
+      ? (fxPlaying ? 1.4 : 1.1)
+      : 0.7;
+    jacketPulse.setBoost(jp);
+  }
+
+  function update(dt, ctx = {}) {
+    const elapsed = ctx.elapsed ?? 0;
+    if (ctx.playing != null) fxPlaying = !!ctx.playing;
+    flows.update(dt, elapsed);
+    jacketPulse.update(elapsed);
+  }
+
   function reset() {
     setCutaway(false);
     setCoupling(false);
@@ -275,10 +368,15 @@ export function buildDiazotizationPlant(THREE, scene) {
       jacket.material.emissiveIntensity = 0.18;
       jacket.material.opacity = 0.42;
     }
+    setFxStep(0, { focus: 'D01' }, { playing: false });
   }
+
+  setFxStep(0, { focus: 'D01' }, { playing: false });
 
   return {
     root, devices, anchors, labels,
     setCutaway, setCoupling, triggerAlarm, reset,
+    update, setFxStep,
+    fx: { flows, jacketPulse },
   };
 }

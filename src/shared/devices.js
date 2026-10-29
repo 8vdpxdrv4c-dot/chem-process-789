@@ -385,7 +385,7 @@ export function makeCompressor(THREE, { id = 'comp', h2 = false } = {}) {
     g.add(p);
   }
   g.add(curb, skid, motor, motorEnd, couple, housing, cooler, band);
-  g.userData = { kind: 'compressor', id, pickable: true };
+  g.userData = { kind: 'compressor', id, pickable: true, rotor: motor };
   motor.userData = g.userData;
   housing.userData = g.userData;
   return g;
@@ -406,9 +406,11 @@ export function makeFlare(THREE, { id = 'flare' } = {}) {
     }),
   );
   tip.position.y = 30.3;
+  tip.name = 'flareTip';
   g.add(pole, tip);
-  g.userData = { kind: 'flare', id, pickable: true };
+  g.userData = { kind: 'flare', id, pickable: true, tip, tipLocalY: 30.3 };
   pole.userData = g.userData;
+  tip.userData = g.userData;
   return g;
 }
 

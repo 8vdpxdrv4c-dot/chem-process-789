@@ -2,7 +2,6 @@ import { COLORS } from '../../shared/colors.js';
 import {
   makeGround,
   makeTank,
-  makeHorizontalTank,
   makeFixedBedReactor,
   makeExchanger,
   makeSeparator,
@@ -12,13 +11,17 @@ import {
   makeValveSkid,
   makeGasProbe,
 } from '../../shared/devices.js';
+import { createFlowNetwork } from '../../shared/fx/pipeFlow.js';
+import { createFlareFlame } from '../../shared/fx/flareFlame.js';
 
 /**
  * 加氢厂区 — H-ID 对照 designer-h-id-map.md
  * 参考包：/workspace/out/equipment-refs-789/hydrogenation/ A→G + H10 标牌探头
  * 教学示意级剪影；非专有工厂。
+ * Demo FX: H2/N2/substrate/product pipe flow + H09 flare flame + H08 rotor + bed pulse.
  */
-export function buildHydrogenationPlant(THREE, scene) {
+export function buildHydrogenationPlant(THREE, scene, opts = {}) {
+  const softGL = !!opts.softGL;
   const root = new THREE.Group();
   root.name = 'hydrogenationPlant';
   root.add(makeGround(THREE, 240));
@@ -50,6 +53,8 @@ export function buildHydrogenationPlant(THREE, scene) {
   const bedMat = new THREE.MeshStandardMaterial({
     color: 0x3a2a22, metalness: 0.15, roughness: 0.82, envMapIntensity: 0.5,
     transparent: true, opacity: 0.9,
+    emissive: new THREE.Color(COLORS.warn_orange),
+    emissiveIntensity: 0.05,
   });
   const beds = new THREE.Group();
   beds.name = 'beds';
@@ -162,7 +167,86 @@ export function buildHydrogenationPlant(THREE, scene) {
     ['H11', '产物储罐', '苯胺 · 示意', anchors.H11],
   ];
 
+  /* —— Demo FX: pipe flow + flare —— */
+  const flows = createFlowNetwork(THREE, [
+    {
+      tag: 'H2',
+      name: 'flowH2',
+      color: COLORS.H2,
+      medium: 'gas',
+      radius: 0.32,
+      speed: 1.35,
+      particleCount: softGL ? 22 : 40,
+      points: [
+        [-52, 8, -6], [-36, 7.2, 0], [-16, 7.0, 4], [-8, 6.2, -2], [12, 10, -2],
+      ],
+    },
+    {
+      tag: 'N2',
+      name: 'flowN2',
+      color: COLORS.N2,
+      medium: 'gas',
+      radius: 0.22,
+      speed: 0.95,
+      particleCount: softGL ? 16 : 28,
+      points: [
+        [-36, 3.2, 10], [-30, 4.5, 6], [-24, 5.5, 0], [-16, 6.2, 4],
+      ],
+    },
+    {
+      tag: 'substrate',
+      name: 'flowSubstrate',
+      color: COLORS.substrate,
+      medium: 'liquid',
+      radius: 0.28,
+      speed: 0.9,
+      particleCount: softGL ? 18 : 32,
+      points: [
+        [-28, 6, -10], [-18, 5.5, -6], [-8, 5.0, -4], [4, 7, -3], [12, 9, -2],
+      ],
+    },
+    {
+      tag: 'product',
+      name: 'flowProduct',
+      color: COLORS.h2_product,
+      medium: 'liquid',
+      radius: 0.26,
+      speed: 0.85,
+      particleCount: softGL ? 18 : 32,
+      points: [
+        [12, 8, -2], [22, 6, -5], [30, 5.5, -8], [38, 7, -2], [44, 8, 2], [54, 7, 6], [64, 7, 10],
+      ],
+    },
+    {
+      tag: 'recycle',
+      name: 'flowRecycleH2',
+      color: COLORS.H2,
+      medium: 'gas',
+      radius: 0.24,
+      speed: 1.2,
+      particleCount: softGL ? 16 : 28,
+      points: [
+        [44, 12, 2], [38, 9, 10], [32, 5, 16], [22, 8, 8], [12, 14, -2],
+      ],
+    },
+  ], softGL);
+  root.add(flows.root);
+
+  const flareTipWorld = new THREE.Vector3(62, 30.4, -24);
+  const flame = createFlareFlame(THREE, {
+    position: flareTipWorld,
+    intensity: softGL ? 0.95 : 1.15,
+    softGL,
+    sizeMode: softGL ? 'small' : 'mid',
+    name: 'H09Flame',
+  });
+  root.add(flame.root);
+
   let cutawayOn = false;
+  let fxStep = 0;
+  let fxPlaying = false;
+  let bedPulse = 0.05;
+
   function setCutaway(on) {
     cutawayOn = !!on;
     const shell = H05.userData.cutawayTarget;
@@ -208,14 +292,17 @@ export function buildHydrogenationPlant(THREE, scene) {
       zone.material.opacity = 0.24;
       alarmLight.intensity = 2.5;
       setProbeAlarm(true);
+      flame.setBoost(1.55);
     } else if (id === 'hotspot' || id === 'poison') {
       alarmLight.position.copy(anchors.H05).setY(24);
       alarmLight.intensity = 2.0;
+      bedPulse = 0.35;
     } else if (id === 'esd') {
       leak.material.opacity = 0.12;
       zone.material.opacity = 0.1;
       alarmLight.intensity = 1.2;
       setProbeAlarm(true);
+      flame.setBoost(1.4);
     }
     return () => {
       leak.material.opacity = 0;
@@ -223,6 +310,8 @@ export function buildHydrogenationPlant(THREE, scene) {
       alarmLight.intensity = 0;
       alarmLight.position.set(-16, 10, 6);
       setProbeAlarm(false);
+      bedPulse = 0.05;
+      flame.setBoost(1);
     };
   }
 
@@ -237,6 +326,53 @@ export function buildHydrogenationPlant(THREE, scene) {
     }
   }
 
+  /** Map HUD step → flow tags to boost. Idle overview keeps mild life. */
+  function setFxStep(i, step, { playing = false } = {}) {
+    fxStep = i | 0;
+    fxPlaying = !!playing;
+    const focus = step?.focus;
+    let tags = [];
+    if (fxStep === 0) tags = []; // mild all
+    else if (focus === 'H02' || fxStep === 1) tags = ['N2', 'H2'];
+    else if (focus === 'H04' || fxStep === 2) tags = ['substrate', 'H2'];
+    else if (focus === 'H05' || fxStep === 3) tags = ['H2', 'substrate', 'recycle'];
+    else if (focus === 'H07' || fxStep === 4) tags = ['product', 'recycle', 'H2'];
+    else if (focus === 'H11' || fxStep === 5) tags = ['product'];
+    else if (step?.safetyMode || fxStep === 6) tags = ['H2', 'recycle'];
+    flows.applyStepBoost(tags, {
+      idle: 0.5,
+      active: 1.0,
+      playing: fxPlaying,
+    });
+    const flareBoost = (focus === 'H09' || step?.safetyMode || fxStep === 6)
+      ? (fxPlaying ? 1.45 : 1.2)
+      : (fxStep === 0 ? 0.85 : 0.7);
+    flame.setBoost(flareBoost);
+    bedPulse = (focus === 'H05' || fxStep === 3 || cutawayOn) ? 0.22 : 0.05;
+  }
+
+  function update(dt, ctx = {}) {
+    const elapsed = ctx.elapsed ?? 0;
+    if (ctx.playing != null) fxPlaying = !!ctx.playing;
+    flows.update(dt, elapsed);
+    flame.update(dt, elapsed);
+
+    // H08 compressor rotor spin (teaching cue)
+    const rotor = H08.userData?.rotor;
+    if (rotor) {
+      const spin = (fxStep === 0 || fxStep === 3 || fxStep === 4 || fxPlaying) ? 1.0 : 0.45;
+      rotor.rotation.x += dt * 2.8 * spin * (fxPlaying ? 1.35 : 1);
+    }
+    // bed activity when visible / on core step
+    if (beds.visible || fxStep === 3) {
+      beds.children.forEach((disk, i) => {
+        if (!disk.material) return;
+        const wave = 0.5 + 0.5 * Math.sin(elapsed * 2.4 + i * 1.1);
+        disk.material.emissiveIntensity = bedPulse * (0.6 + wave * 0.8);
+      });
+    }
+  }
+
   function reset() {
     setCutaway(false);
     leak.material.opacity = 0;
@@ -244,11 +380,19 @@ export function buildHydrogenationPlant(THREE, scene) {
     alarmLight.intensity = 0;
     setProbeAlarm(false);
     setHero(null);
+    bedPulse = 0.05;
+    flame.setBoost(0.85);
+    setFxStep(0, { focus: 'H05' }, { playing: false });
   }
+
+  // mild life at boot
+  setFxStep(0, { focus: 'H05' }, { playing: false });
 
   return {
     root, devices, anchors, labels,
     setCutaway, triggerAlarm, setHero, reset,
+    update, setFxStep,
+    fx: { flows, flame },
     get cutaway() { return cutawayOn; },
   };
 }

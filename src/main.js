@@ -65,7 +65,7 @@ async function boot() {
     history.replaceState(null, '', `?${next.toString()}`);
   }
   const process = await loadProcess(processId);
-  const plant = buildPlant(THREE, scene, process);
+  const plant = buildPlant(THREE, scene, process, { softGL: !!S.softGL });
   // Ensure Standard/Physical device mats pick up Zipper PMREM.
   // Explicit envMap bypasses scene.environmentIntensity — bake CODE_DEFAULTS.envIntensity.
   try {
@@ -222,6 +222,7 @@ async function boot() {
   });
 
   let currentStepIdx = 0;
+  let hudPlaying = false;
   const hud = createHUD(hudRoot, {
     process,
     processes: processList(),
@@ -253,16 +254,22 @@ async function boot() {
         clearAlarm = plant.triggerAlarm?.(step.alarm) || null;
         setLabelHero(step.focus || 'H01', true);
       }
+      plant.setFxStep?.(i, step, { playing: hudPlaying });
       dirty = true;
     },
     onPlay(playing) {
       clearInterval(playTimer);
       playTimer = null;
+      hudPlaying = !!playing;
+      const step = process.steps?.[currentStepIdx];
+      plant.setFxStep?.(currentStepIdx, step, { playing: hudPlaying });
+      dirty = true;
       if (playing) {
         playTimer = setInterval(() => {
           hud.go(hud.stepIndex + 1);
           if (hud.stepIndex === 0) {
             hud.setPlaying(false);
+            hudPlaying = false;
             clearInterval(playTimer);
           }
         }, PLAY_MS);
@@ -306,6 +313,7 @@ async function boot() {
     onReset() {
       clearInterval(playTimer);
       playTimer = null;
+      hudPlaying = false;
       clearAlarm?.();
       clearAlarm = null;
       plant.reset?.();
@@ -321,12 +329,23 @@ async function boot() {
   let frames = 0, tAcc = 0;
   const roadTraffic = scene.getObjectByName('roadTraffic');
 
+  let fxElapsed = 0;
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min(40, now - last);
     last = now;
+    const dtSec = dt / 1000;
+    fxElapsed += dtSec;
     if (roadTraffic?.userData?.update) {
       roadTraffic.userData.update(dt);
+      dirty = true;
+    }
+    if (plant.update) {
+      plant.update(dtSec, {
+        elapsed: fxElapsed,
+        stepIndex: currentStepIdx,
+        playing: hudPlaying || !!hud.playing,
+      });
       dirty = true;
     }
     if (fly.update(dt) || controls.update()) dirty = true;
@@ -371,6 +390,7 @@ async function boot() {
 
   window.__app = {
     process, plant, hud, fly, S, Q, gpu,
+    fx: plant.fx || null,
     envHandles, envPanel,
     go: (i) => hud.go(i),
     setDofMode: (m) => S.setDofMode?.(m),

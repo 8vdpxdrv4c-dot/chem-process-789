@@ -1,0 +1,102 @@
+{
+  "shots": [
+    {
+      "processId": 7,
+      "softGL": true,
+      "hasOutputPass": true,
+      "flowTags": [
+        "HF",
+        "organic",
+        "product",
+        "tail"
+      ],
+      "fxNames": [
+        "demister",
+        "hfMist",
+        "flowNetwork",
+        "flowHF",
+        "flowOrganic",
+        "flowFluorProduct",
+        "flowTailGas",
+        "F07ScrubMist"
+      ],
+      "hasFlame": false,
+      "hasScrub": true,
+      "hasJacket": false,
+      "exposure": 0.41359999999999997
+    },
+    {
+      "processId": 8,
+      "softGL": true,
+      "hasOutputPass": true,
+      "flowTags": [
+        "H2",
+        "N2",
+        "substrate",
+        "product",
+        "recycle"
+      ],
+      "fxNames": [
+        "demister",
+        "flareTip",
+        "flowNetwork",
+        "flowH2",
+        "flowN2",
+        "flowSubstrate",
+        "flowProduct",
+        "flowRecycleH2",
+        "H09Flame",
+        "flareGlow"
+      ],
+      "hasFlame": true,
+      "hasScrub": false,
+      "hasJacket": false,
+      "exposure": 0.41359999999999997
+    },
+    {
+      "processId": 9,
+      "softGL": true,
+      "hasOutputPass": true,
+      "flowTags": [
+        "coolant",
+        "nitrite",
+        "amine",
+        "acid"
+      ],
+      "fxNames": [
+        "flowNetwork",
+        "flowCoolant",
+        "flowNitrite",
+        "flowAmine",
+        "flowAcid"
+      ],
+      "hasFlame": false,
+      "hasScrub": false,
+      "hasJacket": true,
+      "exposure": 0.41359999999999997
+    }
+  ],
+  "errs": [],
+  "soft": {
+    "softGL": true,
+    "graded": true,
+    "exposure": 0.41359999999999997,
+    "envIntensity": 2.25,
+    "bloom": {
+      "s": 0.27,
+      "on": true
+    },
+    "bokehEnabled": false,
+    "muls": {
+      "exposureMul": 0.88,
+      "envIntensityMul": 0.9,
+      "bloomMul": 0.75
+    },
+    "before": {
+      "exposure": 0.47,
+      "envIntensity": 2.5,
+      "bloomStrength": 0.36,
+      "bloomEnabled": true
+    }
+  }
+}
