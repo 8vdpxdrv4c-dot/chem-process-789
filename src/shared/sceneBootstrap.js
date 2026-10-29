@@ -4,6 +4,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { PRESET } from './quality.js';
 import { applySkyAndFog, addMountains } from './environment.js';
 
@@ -138,6 +139,12 @@ export function createScene(canvas, { Q = 'high' } = {}) {
     composer.addPass(bokeh);
   }
 
+  // Tone mapping + sRGB must run AFTER bloom/bokeh (HDR). Without OutputPass,
+  // renderer.toneMapping / toneMappingExposure have no effect on the composer path
+  // (RT renders force NoToneMapping; final blit never re-applies AgX/ACES/etc.).
+  const outputPass = new OutputPass();
+  composer.addPass(outputPass);
+
   // Overview = mild DOF (preset); close = 大光圈 when flying to device/step
   const DOF_MODES = {
     overview: {
@@ -203,6 +210,7 @@ export function createScene(canvas, { Q = 'high' } = {}) {
     composer,
     bloom,
     bokeh,
+    outputPass,
     hemi,
     key,
     fill,
