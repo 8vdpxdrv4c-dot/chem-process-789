@@ -41,7 +41,7 @@ export function buildFluorinationPlant(THREE, scene, opts = {}) {
 
   // F05 气液分离器
   const F05 = makeSeparator(THREE, { id: 'F05', h: 10, r: 2.8 });
-  F05.position.set(28, 0, -6);
+  F05.position.set(30, 0, -6); // clear of x-road
 
   // F06 冷凝器
   const F06 = makeExchanger(THREE, { id: 'F06', L: 9, r: 1.5 });
@@ -69,7 +69,7 @@ export function buildFluorinationPlant(THREE, scene, opts = {}) {
 
   // F₂ 对比架（默认关）
   const F2 = makeF2CylinderRack(THREE, { id: 'F2' });
-  F2.position.set(-62, 0, -22);
+  F2.position.set(-62, 0, -16); // clear of south asphalt
   F2.visible = false;
 
   const rack1 = makePipeRack(THREE, {
@@ -143,7 +143,7 @@ export function buildFluorinationPlant(THREE, scene, opts = {}) {
     F02: new THREE.Vector3(-52, 11, 14),
     F03: new THREE.Vector3(-26, 4.5, -2),
     F04: new THREE.Vector3(0, 14, 0),
-    F05: new THREE.Vector3(28, 12, -6),
+    F05: new THREE.Vector3(30, 12, -6),
     F06: new THREE.Vector3(28, 4, 14),
     F07: new THREE.Vector3(50, 18, 2),
     F08: new THREE.Vector3(-8, 7, 12),
@@ -198,7 +198,7 @@ export function buildFluorinationPlant(THREE, scene, opts = {}) {
       speed: 0.85,
       particleCount: softGL ? 16 : 30,
       points: [
-        [0, 8, 0], [14, 7, -3], [28, 8, -6], [40, 7, 0], [50, 6, 4], [66, 6, 12],
+        [0, 8, 0], [14, 7, -3], [30, 8, -6], [40, 7, 0], [50, 6, 4], [66, 6, 12],
       ],
     },
     {
@@ -210,7 +210,7 @@ export function buildFluorinationPlant(THREE, scene, opts = {}) {
       speed: 1.1,
       particleCount: softGL ? 14 : 24,
       points: [
-        [0, 14, 0], [14, 13, -2], [28, 12, -4], [40, 14, 0], [50, 16, 2],
+        [0, 14, 0], [14, 13, -2], [30, 12, -4], [40, 14, 0], [50, 16, 2],
       ],
     },
   ], softGL);

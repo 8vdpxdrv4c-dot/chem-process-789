@@ -1309,6 +1309,207 @@ export function makeRoadTraffic(THREE, size = 220) {
   return g;
 }
 
+
+/** Shared asphalt corridor geometry (ground / lamps / trucks / plant clearance). */
+export function getRoadLayout(size = 220) {
+  const roadW = 7.2;
+  const margin = 2.2; // equipment footprints stay off curb
+  const half = roadW * 0.5 + margin;
+  const zRoads = [-size * 0.12, size * 0.18];
+  const xRoad = size * 0.08;
+  return {
+    roadW,
+    margin,
+    half,
+    zRoads,
+    xRoad,
+    /** True if (x,z) disk intersects asphalt+margin corridor */
+    hitsRoad(x, z, radius = 0) {
+      const r = Math.max(0, radius);
+      for (const zr of zRoads) {
+        if (Math.abs(z - zr) < half + r) return true;
+      }
+      if (Math.abs(x - xRoad) < half + r) return true;
+      return false;
+    },
+  };
+}
+
+/**
+ * Stylized safety inspectors (hardhat + vest) on pad/walkway patrol loops.
+ * Paths stay on concrete islands — never along asphalt centerlines or through
+ * major equipment centroids.
+ */
+export function makeSafetyPatrols(THREE, size = 220) {
+  const g = new THREE.Group();
+  g.name = 'safetyPatrols';
+  const roads = getRoadLayout(size);
+
+  function makeInspector({ vest = 0xff8a1e, hardhat = 0xffe14a, scale = 1 } = {}) {
+    const fig = new THREE.Group();
+    fig.name = 'inspector';
+    const boot = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.18, 0.22, 8),
+      new THREE.MeshStandardMaterial({ color: 0x2a2e34, roughness: 0.85, metalness: 0.1 }),
+    );
+    boot.position.y = 0.11;
+    const legL = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.11, 0.13, 0.7, 8),
+      new THREE.MeshStandardMaterial({ color: 0x3a4550, roughness: 0.8, metalness: 0.15 }),
+    );
+    legL.position.set(-0.12, 0.55, 0);
+    const legR = legL.clone();
+    legR.position.x = 0.12;
+    const torso = new THREE.Mesh(
+      new THREE.BoxGeometry(0.55, 0.75, 0.32),
+      new THREE.MeshStandardMaterial({
+        color: vest, roughness: 0.55, metalness: 0.25,
+        emissive: vest, emissiveIntensity: 0.08, envMapIntensity: 0.7,
+      }),
+    );
+    torso.position.y = 1.2;
+    const stripe = new THREE.Mesh(
+      new THREE.BoxGeometry(0.56, 0.1, 0.33),
+      new THREE.MeshStandardMaterial({
+        color: 0xfff2a8, emissive: 0xfff2a8, emissiveIntensity: 0.35, roughness: 0.5, metalness: 0.2,
+      }),
+    );
+    stripe.position.y = 1.05;
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.2, 12, 10),
+      new THREE.MeshStandardMaterial({ color: 0xcfa886, roughness: 0.7, metalness: 0.05 }),
+    );
+    head.position.y = 1.72;
+    const hat = new THREE.Mesh(
+      new THREE.SphereGeometry(0.23, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshStandardMaterial({
+        color: hardhat, roughness: 0.45, metalness: 0.2,
+        emissive: hardhat, emissiveIntensity: 0.12,
+      }),
+    );
+    hat.position.y = 1.78;
+    const brim = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.28, 0.28, 0.04, 12),
+      new THREE.MeshStandardMaterial({ color: hardhat, roughness: 0.45, metalness: 0.2 }),
+    );
+    brim.position.y = 1.78;
+    fig.add(boot, legL, legR, torso, stripe, head, hat, brim);
+    fig.scale.setScalar(scale);
+    fig.userData.legs = [legL, legR];
+    return fig;
+  }
+
+  // Patrol loops on unit-pad islands (clear of asphalt corridors)
+  const s = size / 240;
+  const loops = [
+    { // feed pad walkway
+      pts: [
+        [-52 * s, -12 * s], [-30 * s, -12 * s], [-30 * s, 4 * s], [-52 * s, 4 * s],
+      ],
+      speed: 1.55,
+      vest: 0xff8a1e,
+      phase: 0,
+    },
+    { // reactor island (west of x-road)
+      pts: [
+        [-6 * s, -12 * s], [8 * s, -12 * s], [8 * s, 6 * s], [-6 * s, 6 * s],
+      ],
+      speed: 1.35,
+      vest: 0xffc107,
+      phase: 0.35,
+      hardhat: 0xffffff,
+    },
+    { // sep / compressor east of x-road
+      pts: [
+        [28 * s, -10 * s], [48 * s, -10 * s], [48 * s, 10 * s], [28 * s, 10 * s],
+      ],
+      speed: 1.7,
+      vest: 0xff8a1e,
+      phase: 0.7,
+    },
+    { // product / flare apron
+      pts: [
+        [56 * s, -14 * s], [72 * s, -14 * s], [72 * s, 6 * s], [56 * s, 6 * s],
+      ],
+      speed: 1.25,
+      vest: 0x2ecc71,
+      phase: 0.15,
+      hardhat: 0xffe14a,
+    },
+  ];
+
+  const agents = [];
+  for (const loop of loops) {
+    // Drop any waypoint that somehow lands on asphalt
+    const pts = loop.pts.filter(([x, z]) => !roads.hitsRoad(x, z, 0.8));
+    if (pts.length < 2) continue;
+    const fig = makeInspector({
+      vest: loop.vest,
+      hardhat: loop.hardhat ?? 0xffe14a,
+      scale: 1.05,
+    });
+    g.add(fig);
+    agents.push({
+      fig,
+      pts,
+      speed: loop.speed,
+      // distance along polyline perimeter
+      dist: loop.phase * perimeter(pts),
+      stride: 0,
+    });
+  }
+
+  function perimeter(pts) {
+    let len = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i];
+      const b = pts[(i + 1) % pts.length];
+      len += Math.hypot(b[0] - a[0], b[1] - a[1]);
+    }
+    return len;
+  }
+
+  function placeAlong(pts, dist) {
+    const per = perimeter(pts);
+    let d = ((dist % per) + per) % per;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i];
+      const b = pts[(i + 1) % pts.length];
+      const seg = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (d <= seg) {
+        const t = seg > 1e-6 ? d / seg : 0;
+        return {
+          x: a[0] + (b[0] - a[0]) * t,
+          z: a[1] + (b[1] - a[1]) * t,
+          yaw: Math.atan2(b[0] - a[0], b[1] - a[1]),
+        };
+      }
+      d -= seg;
+    }
+    const a = pts[0];
+    return { x: a[0], z: a[1], yaw: 0 };
+  }
+
+  g.userData.update = (dtMs) => {
+    const dt = Math.min(0.05, (dtMs || 16) / 1000);
+    for (const a of agents) {
+      a.dist += a.speed * dt;
+      const p = placeAlong(a.pts, a.dist);
+      // Skip a frame jump if snapped onto road (safety)
+      if (roads.hitsRoad(p.x, p.z, 0.5)) continue;
+      a.fig.position.set(p.x, 0, p.z);
+      a.fig.rotation.y = p.yaw;
+      a.stride += dt * a.speed * 4.5;
+      const legs = a.fig.userData.legs || [];
+      if (legs[0]) legs[0].rotation.x = Math.sin(a.stride) * 0.45;
+      if (legs[1]) legs[1].rotation.x = Math.sin(a.stride + Math.PI) * 0.45;
+    }
+  };
+  g.userData.agents = agents;
+  g.userData.roads = roads;
+  return g;
+}
+
 /** 厂房地坪 — Haber 分层：外环暗地 + 混凝土主垫 + 沥青路 + 设备浅垫 */
 export function makeGround(THREE, size = 220) {
   const g = new THREE.Group();
@@ -1415,7 +1616,8 @@ export function makeGround(THREE, size = 220) {
     g.add(line);
   }
 
-  // 4) Lighter unit pads under major equipment zones
+  // 4) Unit pads as islands BETWEEN asphalt corridors (never cover roads)
+  const roads = getRoadLayout(size);
   const tUnit = concreteTex();
   tUnit.repeat.set(6, 6);
   tUnit.needsUpdate = true;
@@ -1423,15 +1625,19 @@ export function makeGround(THREE, size = 220) {
     color: 0x9aa2aa, map: tUnit, roughness: 0.59, metalness: 0.03,
     emissive: 0x22262c, emissiveIntensity: 1.4,
   });
-  // Relative pads cover feed / reactor / sep-comp / product (scale with size)
+  // Sized for size=240 reference; scale with plant. Keep clear of xRoad / zRoads.
   const s = size / 240;
   const pads = [
-    [-40 * s, -4 * s, 36 * s, 28 * s],   // H01–H03 feed
-    [8 * s, -4 * s, 28 * s, 26 * s],     // H04–H05 reactor
-    [38 * s, 4 * s, 30 * s, 30 * s],     // H06–H08 sep/comp
-    [62 * s, -8 * s, 28 * s, 36 * s],    // H09–H11 flare/product
+    [-40 * s, -6 * s, 36 * s, 20 * s],  // feed W (south of north-road, west of x-road)
+    [0 * s, -4 * s, 20 * s, 20 * s],    // reactor island west of x-road
+    [42 * s, 0 * s, 28 * s, 24 * s],    // sep/comp east of x-road
+    [66 * s, -4 * s, 24 * s, 24 * s],   // product / flare apron (north of south-road)
   ];
   for (const [x, z, w, d] of pads) {
+    // Sanity: pad center must not sit on asphalt
+    if (roads.hitsRoad(x, z, Math.min(w, d) * 0.15)) {
+      console.warn('[ground] unit pad center hits road corridor', x, z);
+    }
     const u = new THREE.Mesh(new THREE.BoxGeometry(w, 0.06, d), unitMat);
     u.position.set(x, 0.03, z);
     u.receiveShadow = true;
@@ -1443,6 +1649,8 @@ export function makeGround(THREE, size = 220) {
   g.add(street);
   const traffic = makeRoadTraffic(THREE, size);
   g.add(traffic);
+  const patrols = makeSafetyPatrols(THREE, size);
+  g.add(patrols);
 
   g.userData.env = {
     outerMat: outer.material,
@@ -1453,6 +1661,8 @@ export function makeGround(THREE, size = 220) {
     street: street.userData.env,
   };
   g.userData.traffic = traffic;
+  g.userData.patrols = patrols;
+  g.userData.roads = roads;
 
   return g;
 }

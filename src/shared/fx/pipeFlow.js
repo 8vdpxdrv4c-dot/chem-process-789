@@ -11,7 +11,7 @@ const FlowShader = {
     uSpeed: { value: 1.2 },
     uColor: { value: new THREE.Color(0x2a9fff) },
     uEmissive: { value: new THREE.Color(0x0a3060) },
-    uOpacity: { value: 0.72 },
+    uOpacity: { value: 1.0 },
     uEnergy: { value: 0.35 },
     uValve: { value: 1.0 },
   },
@@ -75,10 +75,10 @@ const FlowShader = {
       col += uEmissive * uEnergy * (0.35 + bands * 1.1);
       col += vec3(0.55, 0.8, 1.0) * fres * (0.28 + uEnergy * 0.4);
 
-      float flowVis = mix(0.22, 1.0, uValve);
-      float alpha = uOpacity * (0.38 + bands * 0.62) * flowVis;
-      alpha = mix(alpha, alpha * 0.5 + fres * 0.35, 0.3);
-      gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
+      // Opaque flow tubes (no glass/transmission) — bands modulate albedo only
+      float flowVis = mix(0.55, 1.0, uValve);
+      col *= flowVis;
+      gl_FragColor = vec4(col, 1.0);
     }
   `,
 };
@@ -86,13 +86,14 @@ const FlowShader = {
 function mediumLook(colorHex, medium = 'liquid') {
   const color = new THREE.Color(colorHex);
   const emissive = color.clone().multiplyScalar(0.35);
+  // Tubes stay fully opaque; medium only tunes albedo energy / bead cue
   if (medium === 'gas') {
-    return { color, emissive, opacity: 0.55, energy: 0.7 };
+    return { color, emissive, opacity: 1, energy: 0.7 };
   }
   if (medium === 'steam') {
-    return { color, emissive, opacity: 0.42, energy: 0.5 };
+    return { color, emissive, opacity: 1, energy: 0.5 };
   }
-  return { color, emissive, opacity: 0.82, energy: 0.45 };
+  return { color, emissive, opacity: 1, energy: 0.45 };
 }
 
 /**
@@ -148,10 +149,10 @@ export function createFlowLine(THREE, opts) {
     uniforms,
     vertexShader: FlowShader.vertexShader,
     fragmentShader: FlowShader.fragmentShader,
-    transparent: true,
-    depthWrite: false,
+    transparent: false,
+    depthWrite: true,
     side: THREE.DoubleSide,
-    blending: look.energy > 0.7 ? THREE.AdditiveBlending : THREE.NormalBlending,
+    blending: THREE.NormalBlending,
   });
   const tube = new THREE.Mesh(geo, mat);
   tube.frustumCulled = false;
@@ -171,10 +172,10 @@ export function createFlowLine(THREE, opts) {
     new THREE.PointsMaterial({
       color: look.color,
       size: softGL ? 1.15 : 0.5,
-      transparent: true,
-      opacity: Math.min(1, look.opacity + 0.25),
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
+      blending: THREE.NormalBlending,
       sizeAttenuation: true,
     }),
   );

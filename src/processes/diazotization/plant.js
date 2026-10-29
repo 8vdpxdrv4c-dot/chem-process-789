@@ -30,7 +30,7 @@ export function buildDiazotizationPlant(THREE, scene, opts = {}) {
 
   // D03 冷冻机组撬
   const D03 = makeChillerSkid(THREE, { id: 'D03' });
-  D03.position.set(18, 0, -14);
+  D03.position.set(28, 0, -14); // east of x-road
 
   // D04 酸配制罐
   const D04 = makeTank(THREE, { id: 'D04', h: 7, r: 2.4, bandColor: COLORS.acid });
@@ -42,7 +42,7 @@ export function buildDiazotizationPlant(THREE, scene, opts = {}) {
 
   // D06 紧急稀释槽
   const D06 = makeQuenchTank(THREE, { id: 'D06', r: 4.0, h: 3.0 });
-  D06.position.set(22, 0, 12);
+  D06.position.set(32, 0, 12); // east of x-road
 
   // D07 泄放/逸气（挂在 D01 顶侧）
   const D07 = makeReliefVent(THREE, { id: 'D07' });
@@ -88,7 +88,7 @@ export function buildDiazotizationPlant(THREE, scene, opts = {}) {
     new THREE.MeshStandardMaterial({ color: 0x4a5568, metalness: 0.8, roughness: 0.34, envMapIntensity: 1.1 }),
   );
   dump.rotation.z = Math.PI / 2.6;
-  dump.position.set(11, 5, 6);
+  dump.position.set(16, 5, 6); // toward D06 east
 
   // —— N₂ 暴涌粒子（蓝 #2f7df0）· 教室克制 ——
   const n2N = 160;
@@ -132,10 +132,10 @@ export function buildDiazotizationPlant(THREE, scene, opts = {}) {
   const anchors = {
     D01: new THREE.Vector3(0, 11, 0),
     D02: new THREE.Vector3(-16, 12, 8),
-    D03: new THREE.Vector3(18, 5, -14),
+    D03: new THREE.Vector3(28, 5, -14),
     D04: new THREE.Vector3(-28, 9, -6),
     D05: new THREE.Vector3(-22, 10, -10),
-    D06: new THREE.Vector3(22, 5, 12),
+    D06: new THREE.Vector3(32, 5, 12),
     D07: new THREE.Vector3(3.2, 16, 0),
     D08: new THREE.Vector3(36, 10, 4),
     D09: new THREE.Vector3(-4, 9, -8),
@@ -168,8 +168,8 @@ export function buildDiazotizationPlant(THREE, scene, opts = {}) {
       speed: 1.0,
       particleCount: softGL ? 20 : 36,
       points: [
-        [18, 3.5, -14], [10, 4.5, -10], [4, 6.5, -6], [0, 5.5, -2], [0, 4.5, 0],
-        [-2, 6.5, -4], [-4, 7.0, -8], [4, 7.2, -8], [10, 5, -10], [18, 3.8, -12],
+        [28, 3.5, -14], [16, 4.5, -10], [8, 6.5, -6], [0, 5.5, -2], [0, 4.5, 0],
+        [-2, 6.5, -4], [-4, 7.0, -8], [4, 7.2, -8], [16, 5, -10], [28, 3.8, -12],
       ],
     },
     {

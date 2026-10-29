@@ -328,6 +328,7 @@ async function boot() {
   let last = performance.now();
   let frames = 0, tAcc = 0;
   const roadTraffic = scene.getObjectByName('roadTraffic');
+  const safetyPatrols = scene.getObjectByName('safetyPatrols');
 
   let fxElapsed = 0;
   function frame(now) {
@@ -338,6 +339,10 @@ async function boot() {
     fxElapsed += dtSec;
     if (roadTraffic?.userData?.update) {
       roadTraffic.userData.update(dt);
+      dirty = true;
+    }
+    if (safetyPatrols?.userData?.update) {
+      safetyPatrols.userData.update(dt);
       dirty = true;
     }
     if (plant.update) {

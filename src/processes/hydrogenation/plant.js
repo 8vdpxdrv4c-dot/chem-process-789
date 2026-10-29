@@ -49,7 +49,7 @@ export function buildHydrogenationPlant(THREE, scene, opts = {}) {
 
   // H05 加氢反应器（固定床）
   const H05 = makeFixedBedReactor(THREE, { id: 'H05', h: 22, r: 3.7 });
-  H05.position.set(12, 0, -2);
+  H05.position.set(6, 0, -2); // west of x-road corridor
   const bedMat = new THREE.MeshStandardMaterial({
     color: 0x3a2a22, metalness: 0.15, roughness: 0.82, envMapIntensity: 0.5,
     transparent: true, opacity: 0.9,
@@ -83,7 +83,7 @@ export function buildHydrogenationPlant(THREE, scene, opts = {}) {
 
   // H09 火炬
   const H09 = makeFlare(THREE, { id: 'H09' });
-  H09.position.set(62, 0, -24);
+  H09.position.set(62, 0, -18); // north of south asphalt
 
   // H10 可燃气体探头（标牌小组件）
   const H10 = makeGasProbe(THREE, { id: 'H10' });
@@ -144,11 +144,11 @@ export function buildHydrogenationPlant(THREE, scene, opts = {}) {
     H02: new THREE.Vector3(-36, 3.5, 10),
     H03: new THREE.Vector3(-28, 10, -10),
     H04: new THREE.Vector3(-8, 4.5, -4),
-    H05: new THREE.Vector3(12, 16, -2),
+    H05: new THREE.Vector3(6, 16, -2),
     H06: new THREE.Vector3(30, 4.5, -8),
     H07: new THREE.Vector3(44, 14, 2),
     H08: new THREE.Vector3(32, 4, 16),
-    H09: new THREE.Vector3(62, 28, -24),
+    H09: new THREE.Vector3(62, 28, -18),
     H10: new THREE.Vector3(-12, 4.2, 12),
     H11: new THREE.Vector3(64, 12, 10),
   };
@@ -178,7 +178,7 @@ export function buildHydrogenationPlant(THREE, scene, opts = {}) {
       speed: 1.35,
       particleCount: softGL ? 22 : 40,
       points: [
-        [-52, 8, -6], [-36, 7.2, 0], [-16, 7.0, 4], [-8, 6.2, -2], [12, 10, -2],
+        [-52, 8, -6], [-36, 7.2, 0], [-16, 7.0, 4], [-8, 6.2, -2], [6, 10, -2],
       ],
     },
     {
@@ -202,7 +202,7 @@ export function buildHydrogenationPlant(THREE, scene, opts = {}) {
       speed: 0.9,
       particleCount: softGL ? 18 : 32,
       points: [
-        [-28, 6, -10], [-18, 5.5, -6], [-8, 5.0, -4], [4, 7, -3], [12, 9, -2],
+        [-28, 6, -10], [-18, 5.5, -6], [-8, 5.0, -4], [0, 7, -3], [6, 9, -2],
       ],
     },
     {
@@ -214,7 +214,7 @@ export function buildHydrogenationPlant(THREE, scene, opts = {}) {
       speed: 0.85,
       particleCount: softGL ? 18 : 32,
       points: [
-        [12, 8, -2], [22, 6, -5], [30, 5.5, -8], [38, 7, -2], [44, 8, 2], [54, 7, 6], [64, 7, 10],
+        [6, 8, -2], [22, 6, -5], [30, 5.5, -8], [38, 7, -2], [44, 8, 2], [54, 7, 6], [64, 7, 10],
       ],
     },
     {
